@@ -17,19 +17,18 @@ If the sender is doing files or directories, its first message contains just
 a `transit` key, whose value is a dictionary with `abilities-v1` and
 `hints-v1` keys. These are given to the Transit object, described below.
 
-Then (for both files/directories and text) it sends a message with an `offer`
-key. The offer contains a single key, exactly one of (`message`, `file`, or
-`directory`). For `message`, the value is the message being sent. For `file`
-and `directory`, it contains a dictionary with additional information:
+Then it sends a message with an `offer` key. The offer contains exactly one of:
 
 * `message`: the text message, for text-mode
-* `file`: for file-mode, a dict with `filename` and `filesize`
+* `file`: for file-mode, a dict with:
+    * `filename`
+    * `filesize`
 * `directory`: for directory-mode, a dict with:
- * `mode`: the compression mode, currently always `zipfile/deflated`
- * `dirname`
- * `zipsize`: integer, size of the transmitted data in bytes
- * `numbytes`: integer, estimated total size of the uncompressed directory
- * `numfiles`: integer, number of files+directories being sent
+    * `mode`: the compression mode, currently always `zipfile/deflated`
+    * `dirname`
+    * `zipsize`: integer, size of the transmitted data in bytes
+    * `numbytes`: integer, estimated total size of the uncompressed directory
+    * `numfiles`: integer, number of files+directories being sent
 
 The sender runs a loop where it waits for similar dictionary-shaped messages
 from the recipient, and processes them. It reacts to the following keys:
@@ -37,16 +36,13 @@ from the recipient, and processes them. It reacts to the following keys:
 * `error`: use the value to throw a TransferError and terminates
 * `transit`: use the value to build the Transit instance
 * `answer`:
- * if `message_ack: ok` is in the value (we're in text-mode), then exit with success
- * if `file_ack: ok` in the value (and we're in file/directory mode), then
-   wait for Transit to connect, then send the file through Transit, then wait
-   for an ack (via Transit), then exit
+    * if `message_ack: "ok"` is in the value (we're in text-mode), then exit with success
+    * if `file_ack: "ok"` in the value (and we're in file/directory mode), then
+      wait for Transit to connect, then send the file through Transit, then wait
+      for an ack (via Transit), then exit
 
-The sender can handle all of these keys in the same message, or spaced out
-over multiple ones. It will ignore any keys it doesn't recognize, and will
-completely ignore messages that don't contain any recognized key. The only
-constraint is that the message containing `message_ack` or `file_ack` is the
-last one: it will stop looking for wormhole messages at that point.
+~~The sender can handle all of these keys in the same message, or spaced out over multiple ones.~~ **This is strongly discouraged!** *Probably no implementation supports receiving multiple messages in one, and no one sends multiple at once.* ~~It will ignore any keys it doesn't recognize, and will completely ignore messages that don't contain any recognized key.~~ *As all capabilities are explained during version negotiation, every sender knows what keys are supported by the other side. No unsupported values should be transferred.* The only constraint is that the message containing `message_ack` or `file_ack` is the last one: it will stop looking for wormhole messages at that point (the
+wormhole connection may be closed after the ack).
 
 ## Recipient
 
@@ -60,10 +56,10 @@ received message:
 (with the value) and exits immediately (before processing any other keys)
 * `transit`: the value is used to build the Transit instance
 * `offer`: parse the offer:
- * `message`: accept the message and terminate
- * `file`: connect a Transit instance, wait for it to deliver the indicated
-  number of bytes, then write them to the target filename
- * `directory`: as with `file`, but unzip the bytes into the target directory
+    * `message`: accept the message and terminate
+    * `file`: connect a Transit instance, wait for it to deliver the indicated
+    number of bytes, then write them to the target filename
+    * `directory`: as with `file`, but unzip the bytes into the target directory
 
 ## Transit
 
