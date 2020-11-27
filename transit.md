@@ -1,5 +1,13 @@
 # Transit Protocol
 
+The Wormhole API does not currently provide for large-volume data transfer
+(this feature will be added to a future version, under the name "Dilated
+Wormhole"). For now, bulk data is sent through a "Transit" object, which does
+not use the Rendezvous Server. Instead, it tries to establish a direct TCP
+connection from sender to recipient (or vice versa). If that fails, both
+sides connect to a "Transit Relay", a very simple Server that just glues two
+TCP sockets together when asked.
+
 The Transit protocol is responsible for establishing an encrypted
 bidirectional record stream between two programs. It must be given a "transit
 key" and a set of "hints" which help locate the other end (which are both
@@ -22,14 +30,17 @@ both connect to a relay server.
 
 ## Roles
 
-The Transit protocol has pre-defined "Sender" and "Receiver" roles (unlike
-Wormhole, which is symmetric/nobody-goes-first). Each connection must have
-exactly one Sender and exactly one Receiver.
+The Transit protocol has pre-defined "Leder" and "Follower" roles (unlike
+Wormhole, which is symmetric/nobody-goes-first), which are called "Sender" and "Receiver"
+for historical reasons. Each connection must have exactly one Sender and exactly one Receiver.
+If the application using transfer does not provide this distinction, some deterministic
+way for distributing the roles must be used. This could be done by comparing each
+participant's `side` in the Wormhole.
 
 The connection itself is bidirectional: either side can send or receive
 records. However the connection establishment mechanism needs to know who is
 in charge, and the encryption layer needs a way to produce separate keys for
-each side..
+each side.
 
 This may be relaxed in the future, much as Wormhole was.
 
@@ -63,7 +74,44 @@ dropped. If a record is lost (e.g. the receiver observes records #1,#2,#4,
 but not #3), the connection is dropped when the unexpected sequence number is
 received.
 
-## Handshake
+## Abilities
+
+Each Transit object has a set of "abilities". These are outbound connection
+mechanisms that the client is capable of using. The basic CLI tool (running
+on a normal computer) has two abilities: `direct-tcp-v1` and `relay-v1`.
+
+* `direct-tcp-v1` indicates that it can make direct outbound TCP connections to a
+  requested host and port number.
+* `relay-v1` indicates it can connect to the Transit Relay and speak the
+  matching protocol.
+* `tor-tcp-v1`
+
+Future implementations may have additional abilities, such as connecting
+directly to Tor onion services, I2P services, WebSockets, WebRTC, or other
+connection technologies. Implementations on some platforms (such as web
+browsers) may lack `direct-tcp-v1` or `relay-v1`.
+
+Together with each ability, the Transit object can create a
+list of "hints", which tell the respective handshake how to find the other side.
+Hints usually contain a `hostname`, a `port` and an optional `priority`.
+Each hint will fall under one of the abilities that the peer indicated it
+could use. Hints have types like `direct-tcp-v1`, `tor-tcp-v1`, and
+`relay-v1`.
+
+For example, if our peer can use `direct-tcp-v1`, then our Transit object
+will deduce our local IP addresses (unless forbidden, i.e. we're using Tor),
+listen on a TCP port, then send a list of `direct-tcp-v1` hints pointing at
+all of them. If our peer can use `relay-v1`, then we'll connect to our relay
+server and give the peer a hint to the same.
+
+`tor-tcp-v1` hints indicate an Onion service, which cannot be reached without
+Tor. `direct-tcp-v1` hints can be reached with direct TCP connections (unless
+forbidden) or by proxying through Tor. Onion services take about 30 seconds
+to spin up, but bypass NAT, allowing two clients behind NAT boxes to connect
+without a transit relay (really, the entire Tor network is acting as a
+relay).
+
+## Handshake (`direct-tcp-v1`, `tor-tcp-v1`)
 
 The transit key is used to derive several secondary keys. Two of them are
 used as a "handshake", to distinguish correct Transit connections from other
@@ -117,7 +165,7 @@ your wormhole) can cause their peer to make a TCP connection (and send the
 handshake string) to any IP address and port of their choosing. The handshake
 protocol is intended to make this no more than a minor nuisance.
 
-## Relay
+## Relay Handshake (`direct-relay-v1`)
 
 The **Transit Relay** is a host which offers TURN-like services for
 magic-wormhole instances. It uses a TCP-based protocol with a handshake to

@@ -63,76 +63,7 @@ received message:
 
 ## Transit
 
-The Wormhole API does not currently provide for large-volume data transfer
-(this feature will be added to a future version, under the name "Dilated
-Wormhole"). For now, bulk data is sent through a "Transit" object, which does
-not use the Rendezvous Server. Instead, it tries to establish a direct TCP
-connection from sender to recipient (or vice versa). If that fails, both
-sides connect to a "Transit Relay", a very simple Server that just glues two
-TCP sockets together when asked.
-
-The Transit object is created with a key (the same key on each side), and all
-data sent through it will be encrypted with a derivation of that key. The
-transit key is also used to derive handshake messages which are used to make
-sure we're talking to the right peer, and to help the Transit Relay match up
-the two client connections. Unlike Wormhole objects (which are symmetric),
-Transit objects come in pairs: one side is the Sender, and the other is the
-Receiver.
-
-Like Wormhole, Transit provides an encrypted record pipe. If you call
-`.send()` with 40 bytes, the other end will see a `.gotData()` with exactly
-40 bytes: no splitting, merging, dropping, or re-ordering. The Transit object
-also functions as a twisted Producer/Consumer, so it can be connected
-directly to file-readers and writers, and does flow-control properly.
-
-Most of the complexity of the Transit object has to do with negotiating and
-scheduling likely targets for the TCP connection.
-
-Each Transit object has a set of "abilities". These are outbound connection
-mechanisms that the client is capable of using. The basic CLI tool (running
-on a normal computer) has two abilities: `direct-tcp-v1` and `relay-v1`.
-
-* `direct-tcp-v1` indicates that it can make outbound TCP connections to a
-  requested host and port number. "v1" means that the first thing sent over
-  these connections is a specific derived handshake message, e.g. `transit
-  sender HEXHEX ready\n\n`.
-* `relay-v1` indicates it can connect to the Transit Relay and speak the
-  matching protocol (in which the first message is `please relay HEXHEX for
-  side HEX\n`, and the relay might eventually say `ok\n`).
-
-Future implementations may have additional abilities, such as connecting
-directly to Tor onion services, I2P services, WebSockets, WebRTC, or other
-connection technologies. Implementations on some platforms (such as web
-browsers) may lack `direct-tcp-v1` or `relay-v1`.
-
-While it isn't strictly necessary for both sides to emit what they're capable
-of using, it does help performance: a Tor Onion-service -capable receiver
-shouldn't spend the time and energy to set up an onion service if the sender
-can't use it.
-
-After learning the abilities of its peer, the Transit object can create a
-list of "hints", which are endpoints that the peer should try to connect to.
-Each hint will fall under one of the abilities that the peer indicated it
-could use. Hints have types like `direct-tcp-v1`, `tor-tcp-v1`, and
-`relay-v1`. Hints are encoded into dictionaries (with a mandatory `type` key,
-and other keys as necessary):
-
-* `direct-tcp-v1` {hostname:, port:, priority:?}
-* `tor-tcp-v1` {hostname:, port:, priority:?}
-* `relay-v1` {hints: [{hostname:, port:, priority:?}, ..]}
-
-For example, if our peer can use `direct-tcp-v1`, then our Transit object
-will deduce our local IP addresses (unless forbidden, i.e. we're using Tor),
-listen on a TCP port, then send a list of `direct-tcp-v1` hints pointing at
-all of them. If our peer can use `relay-v1`, then we'll connect to our relay
-server and give the peer a hint to the same.
-
-`tor-tcp-v1` hints indicate an Onion service, which cannot be reached without
-Tor. `direct-tcp-v1` hints can be reached with direct TCP connections (unless
-forbidden) or by proxying through Tor. Onion services take about 30 seconds
-to spin up, but bypass NAT, allowing two clients behind NAT boxes to connect
-without a transit relay (really, the entire Tor network is acting as a
-relay).
+See [transit](./transit.md) for some general documentation. The transit protocol does not specify how the data for finding each other is transferred. This is the job of the application level protocol (thus, here):
 
 The file-transfer application uses `transit` messages to convey these
 abilities and hints from one Transit object to the other. After updating the
@@ -140,12 +71,43 @@ Transit objects, it then asks the Transit object to connect, whereupon
 Transit will try to connect to all the hints that it can, and will use the
 first one that succeeds.
 
+The `transit` message mentioned above is encoded following this schema:
+
+```json
+{
+    "transit": {
+        "abilities-v1": [
+            {
+                "kind": "<string, one of {direct-tcp-v1, relay-v1, tor-tcp-v1}>"
+            }
+        ],
+        "hints-v1": [
+            {
+                "type": "'direct-tcp-v1' or 'tor-tcp-v1'",
+                "hostname": "<string>",
+                "port": "<tcp port>",
+                "priority": "<number, usually [0..1], optional>"
+            },
+            {
+                "type": "relay-v1",
+                "hints": [
+                    {
+                        "hostname": "<string>",
+                        "port": "<tcp port>",
+                        "priority": "<number, usually [0..1], optional>"
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
 The file-transfer application, when actually sending file/directory data,
-will close the Wormhole as soon as it has enough information to begin opening
+may close the Wormhole as soon as it has enough information to begin opening
 the Transit connection. The final ack of the received data is sent through
 the Transit object, as a UTF-8-encoded JSON-encoded dictionary with `ack: ok`
 and `sha256: HEXHEX` containing the hash of the received data.
-
 
 ## Future Extensions
 
