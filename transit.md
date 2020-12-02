@@ -44,36 +44,6 @@ each side.
 
 This may be relaxed in the future, much as Wormhole was.
 
-## Records
-
-Transit establishes a **record-pipe**, so the two sides can send and receive
-whole records, rather than unframed bytes. This is a side-effect of the
-encryption (which uses the NaCl "secretbox" function). The encryption adds 44
-bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
-so you might want to use slightly larger records for efficiency. The maximum
-record size is 2^32 bytes (4GiB). The whole record must be held in memory at
-the same time, plus its ciphertext, so very large ciphertexts are not
-recommended.
-
-Transit provides **confidentiality**, **integrity**, and **ordering** of
-records. Passive attackers can only do the following:
-
-* learn the size and transmission time of each record
-* learn the sending and destination IP addresses
-
-In addition, an active attacker is able to:
-
-* delay delivery of individual records, while maintaining ordering (if they
-  delay record #4, they must delay #5 and later as well)
-* terminate the connection at any time
-
-If either side receives a corrupted or out-of-order record, they drop the
-connection. Attackers cannot modify the contents of a record, or change the
-order of the records, without being detected and the connection being
-dropped. If a record is lost (e.g. the receiver observes records #1,#2,#4,
-but not #3), the connection is dropped when the unexpected sequence number is
-received.
-
 ## Abilities
 
 Each Transit object has a set of "abilities". These are outbound connection
@@ -204,92 +174,46 @@ provided by the Transit instance include the locally-configured relay, along
 with the dynamically-determined direct hints. Both should be delivered to the
 peer.
 
-## API
+## Encryption
 
-The Transit API uses Twisted and returns Deferreds for any call that cannot
-be handled immediately. The complete example is here:
+If desired\*, transit provides an enrypted **record-pipe**, which means the two
+sides can and receive whole records, rather than unframed bytes. This is a side-effect of the
+encryption (which uses the NaCl "secretbox" function). The encryption adds 44
+bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
+so you might want to use slightly larger records for efficiency. The maximum
+record size is 2^32 bytes (4GiB). The whole record must be held in memory at
+the same time, plus its ciphertext, so very large ciphertexts are not
+recommended.
 
-```python
-from twisted.internet.defer import inlineCallbacks
-from wormhole.transit import TransitSender
- 
-@inlineCallbacks
-def do_transit():
-    s = TransitSender("tcp:relayhost.example.org:12345")
-    my_connection_hints = yield s.get_connection_hints()
-    # (send my hints via wormhole)
-    # (get their hints via wormhole)
-    s.add_connection_hints(their_connection_hints)
-    key = w.derive_key(application_id + "/transit-key")
-    s.set_transit_key(key)
-    rp = yield s.connect()
-    rp.send_record(b"my first record")
-    their_record = yield rp.receive_record()
-    rp.send_record(b"Greatest Hits)
-    other = yield rp.receive_record()
-    yield rp.close()
-```
+Transit provides **confidentiality**, **integrity**, and **ordering** of
+records. Passive attackers can only do the following:
 
-First, create a Transit instance, giving it the connection information of the
-"baked-in" transit relay. The application must know whether it should use a
-Sender or a Receiver:
+* learn the size and transmission time of each record
+* learn the sending and destination IP addresses
 
-```python
-from wormhole.transit import TransitSender
-s = TransitSender(baked_in_relay)
-```
+In addition, an active attacker (e.g. a malicious relay) is able to:
 
-Next, ask the Transit for its direct and relay hints. This should be
-delivered to the other side via a Wormhole message (i.e. add them to a dict,
-serialize it with JSON, send the result as a message with `wormhole.send()`).
-The `get_connection_hints` method returns a Deferred, so in the example we
-use `@inlineCallbacks` to `yield` the result.
+* delay delivery of individual records, while maintaining ordering (if they
+  delay record #4, they must delay #5 and later as well)
+* terminate the connection at any time
 
-```python
-my_connection_hints = yield s.get_connection_hints()
-```
+If either side receives a corrupted or out-of-order record, they drop the
+connection. Attackers cannot modify the contents of a record, or change the
+order of the records, without being detected and the connection being
+dropped. If a record is lost (e.g. the receiver observes records #1,#2,#4,
+but not #3), the connection is dropped when the unexpected sequence number is
+received.
 
-Then, perform the Wormhole exchange, which ought to give you the direct and
-relay hints of the other side. Tell your Transit instance about their hints.
+\* Most applications will likely want to use this. However, if applications prefer
+doing their own crypto (e.g. because they tunnel SSH or TLS over transit), then
+they can use the "raw" TCP stream built by Wormhole without the encrypted record pipes.
 
-```python
-s.add_connection_hints(their_connection_hints)
-```
+### Nonces
 
-Then use `wormhole.derive_key()` to obtain a shared key for Transit purposes,
-and tell your Transit about it. Both sides must use the same derivation
-string, and this string must not be used for any other purpose, but beyond
-that it doesn't much matter what the exact derivation string is. The key is
-secret, of course.
+Each message contains a 24 bytes long nonce. The first nonce is all zeroes and is
+incremented little endian for each record. As sender and receiver use different keys,
+both sides have their own nonce.
 
-```python
-key = w.derive_key(application_id + "/transit-key")
-s.set_transit_key(key)
-```
-
-Finally, tell the Transit instance to connect. This returns a Deferred that
-will yield a "record pipe" object, on which records can be sent and received.
-If no connection can be established within a timeout (defaults to 30
-seconds), `connect()` will signal a Failure instead. The pipe can be closed
-with `close()`, which returns a Deferred that fires when all data has been
-flushed.
-
-```python
-rp = yield s.connect()
-rp.send_record(b"my first record")
-their_record = yield rp.receive_record()
-rp.send_record(b"Greatest Hits)
-other = yield rp.receive_record()
-yield rp.close()
-```
-
-Records can be sent and received in arbitrary order (you are not limited to
-taking turns).
-
-The record-pipe object also implements the `IConsumer`/`IProducer` protocols
-for **bytes**, which means you can transfer a file by wiring up a file reader
-as a Producer. Each chunk of bytes that the Producer generates will be put
-into a single record. The Consumer interface works the same way. This enables
-backpressure and flow-control: if the far end (or the network) cannot keep up
-with the stream of data, the sender will wait for them to catch up before
-filling buffers without bound.
+For each received record, the nonce must be checked to be equal to the expected value,
+which has to be tracked. Thus, there are 4 nonces in total, two per direction which are
+kept in sync.
