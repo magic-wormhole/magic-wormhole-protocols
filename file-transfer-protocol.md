@@ -78,7 +78,7 @@ The `transit` message mentioned above is encoded following this schema:
     "transit": {
         "abilities-v1": [
             {
-                "kind": "<string, one of {direct-tcp-v1, relay-v1, tor-tcp-v1}>"
+                "type": "<string, one of {direct-tcp-v1, relay-v1, tor-tcp-v1}>"
             }
         ],
         "hints-v1": [
