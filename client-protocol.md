@@ -103,3 +103,77 @@ will be released, and the WebSocket connection will be dropped.
 
 Now the client connection is fully set up, and the application specific messages
 (those with numeric phases) may be exchanged.
+
+## Wormhole Seeds
+
+Once two clients ever connected to each other, they now have a shared secret.
+This can be used to establish a new Wormhole connection without involving human
+entering codes. If A says "I want to connect to B" and B does the same they'll
+find each other and get a secure connection. Some additional data needs to be
+exchanged and stored in order to allow for a good user experience.
+
+Support for session resumption is declared using the
+`seeds-v1` ability during the `versions` phase. Additionally, a `seeds`
+key must be added to the versions message that roughly looks like this:
+
+```json
+{
+  "abilities": [ "seeds-v1" ],
+  "app_versions": {},
+  "seeds": {
+    "display_names": [<string>],
+    "known_seeds": [<string>],
+  },
+}
+```
+
+A client may choose a list of `display_names` in order to be recognizable. Note
+that client names may be arbitrary, collide with other sessions or change over
+time. Any valid UTF-8 string may be used as name, except for the following
+characters: `'`, `"` and `,`.
+
+It is up to the clients to keep track of such a mapping and keep it up to
+date, if they want to. It is also up to the clients to name themselves.
+We recommend giving at least two values: one with the user's
+name and one that also disambiguate multiple devices the user may have (now or in
+the future). The list must be sorted in decreasing order of preference.
+
+A seed is derived from the shared session key like this:
+
+```python
+# `derive(key, purpose)` is the usual key derivation function
+seed = hex(derive(session_key, "wormhole:seed"))
+```
+
+The `seed` is the main shared secret between the peers and all other data will
+be derived from it:
+
+```python
+password = hex(derive(seed, "wormhole:seed:password"))
+nameplate = hex(derive(seed, "wormhole:seed:nameplate"))
+```
+
+To "grow" a seed (resume a connection), both sides connect to the rendezvous server
+using `${nameplate}-${password}` as code. The code is entered automatically without
+user interaction. Setting the `seeds-v1` ability in the `versions` phase is not
+required anymore.
+
+On normal connections where both sides support the seeds ability, clients may
+wish to know whether they already share a seed in common with the peer. For this,
+they may specify all their known seeds into the `known_seeds` list, but hashed
+with a key derivation function using the raw (i.e. not hex-encoded) session ID
+as purpose. By simple set intersection, they will then find out the seeds they
+have in common (provided that both sides act faithfully). The process is equivalent
+to a simple *private set intersection* protocol, meaning that as long as the
+session ID is unique no sensitive contact graph information will be leaked.
+
+### Client implementation notes
+
+- Clients should notify the user about the display names feature, or even provide
+  opt-in. For some people, user name or device name are sensitive information.
+- It is up to the clients if they want to make pairings explicit or automatic.
+- Seeds only work if both sides store the seed. A seed only stored on one side
+  will not function. Clients must deal with this scenario.
+- An expiration time of 12 months for explicitly stored seeds is recommended.
+  Automatically stored seeds (e.g. for session resumption) should be expire after
+  1-14 days, depending on the use case.
