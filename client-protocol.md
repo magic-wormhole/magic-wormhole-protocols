@@ -60,17 +60,24 @@ encoding is the content of the `body` field.
 ## Version exchange
 
 In the `version` phase, the clients exchange information about themselves in
-order to do feature negotiation. 
+order to do feature negotiation. Unknown keys and values must be ignored.
 
-This allows the two Wormhole instances
-to signal their ability to do other things (like "dilate" the wormhole). The
-version data will also include an `app_versions` key which contains a
+The optional `abilities` key allows the two Wormhole instances
+to signal their ability to do other things (like "dilate" the wormhole).
+It defaults to the empty list. Both sides intersect their abilities with their
+peer's ones, in order to determine wich protocol extensions will be used. An
+ability might define more keys in the dict to exchange more detailed information
+about that feature apart from "I support it". Currently specified abilities are:
+`dilation-v1`, `seeds-v1`.
+
+The version data will also include an `app_versions` key which contains a
 dictionary of metadata provided by the application, allowing apps to perform
-similar negotiation. At the moment, no keys other than `app_versions` are
-specified.
+similar negotiation. Its value is determined by the application-specific protocol,
+for example [file transfer](file-transfer-protocol.md).
 
 ```json
 {
+  "abilities": [],
   "app_versions": {},
 }
 ```
