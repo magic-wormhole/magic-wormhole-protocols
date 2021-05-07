@@ -13,7 +13,7 @@ messages are used to open/use/close the application-visible subchannels.
 
 ## Capability discovery
 
-In the `versions` phase of the protocol, the flag `dilation-v1` is added to
+In the `versions` phase of the protocol, the flag `dilation-v1` may be added to
 the `abilities` list. If both sides include that string in theirs, dilation
 messages may be used. If, in the future, there are multiple dilation versions,
 the highest one supported by both sides must be used.

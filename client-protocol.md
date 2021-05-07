@@ -67,7 +67,7 @@ to signal their ability to do other things (like "dilate" the wormhole).
 It defaults to the empty list. Both sides intersect their abilities with their
 peer's ones, in order to determine wich protocol extensions will be used. An
 ability might define more keys in the dict to exchange more detailed information
-about that feature apart from "I support it". Currently specified abilities are:
+about that feature apart from "I support it". Currently reserved abilities are:
 `dilation-v1`, `seeds-v1`.
 
 The version data will also include an `app_versions` key which contains a
