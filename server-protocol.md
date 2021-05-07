@@ -72,23 +72,23 @@ messages. Clients must ignore unrecognized message types from the Server.
 
 The first thing the server sends to each client is the `welcome` message.
 This is intended to deliver important status information to the client that
-might influence its operation. The Python client currently reacts to the
-following keys (and ignores all others):
+might influence its operation. Clients should look out for the following fields,
+and handle them accordingly, if present:
 
-* `current_cli_version`: prompts the user to upgrade if the server's
+* `current_cli_version`: *(deprecated)* prompts the user to upgrade if the server's
   advertised version is greater than the client's version (as derived from
   the git tag)
-* `motd`: prints this message, if present; intended to inform users about
+* `motd`: This message is intended to inform users about
   performance problems, scheduled downtime, or to beg for donations to keep
-  the server running
-* `error`: causes the client to print the message and then terminate. If a
-  future version of the protocol requires a rate-limiting CAPTCHA ticket or
-  other authorization record, the server can send `error` (explaining the
-  requirement) if it does not see this ticket arrive before the `bind`.
+  the server running. Clients should print it or otherwise display prominently
+  to the user. The value *should* be a plain string.
+* `error`: The client should show this message to the user and then terminate.
+  The value *should* be a plain string.
 * `permission-required`: a set of available authentication methods,
   proof of work challenges etc. The client needs to "solve" one of
   them in order to get access to the service.
 
+Other (unknown) fields should be ignored.
 The client should examine the `permissions-required` methods (if
 present) and select one to use (see also "Permission to Use the
 Server" below).
