@@ -44,8 +44,8 @@ contains the binary SPAKE2 message (the one computed as `X+M*pw` or
 ```
 
 Upon receiving their peer's `pake` phase, clients compute and remember the
-shared key. They derive a "verifier", which is a subkey of the shared key
-generated with `wormhole:verifier` as purpose): applications can display
+shared key. They derive a "verifier" which is a subkey of the shared key
+generated with `wormhole:verifier` as purpose: applications can display
 this to users who want additional assurance (by manually comparing the values
 from both sides: they ought to be identical). This protects against the threat
 where a man in the middle attacker correctly guesses the password.
