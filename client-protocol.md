@@ -53,8 +53,8 @@ where a man in the middle attacker correctly guesses the password.
 From this point on, all messages are encrypted using a NaCl `SecretBox` or some
 semantic equivalent. The key is derived from the shared key using the following
 purpose (as pseudocode-fstring): `f"wormhole:phase:{sha256(side)}{sha256(phase)}"`.
-The key derivation function is HKDF-SHA256, using the shared PAKE key as the secret.
-A random nonce is used, and nonce and ciphertext are concatenated. Their hex
+The key derivation function is HKDF-SHA256 using the shared PAKE key as the secret.
+A random nonce is used. The nonce and ciphertext are concatenated. Their hex
 encoding is the content of the `body` field.
 
 ## Version exchange
