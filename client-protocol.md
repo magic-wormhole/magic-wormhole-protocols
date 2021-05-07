@@ -92,6 +92,13 @@ decryption succeeds, then we're confident that *somebody* used the same
 wormhole code as us. This event pushes the client mood from "lonely" to
 "happy".
 
+Usually the `version` message will be the first one decrypted but it
+could be others if we had to re-connect to the Rendezvous
+Server. Implementations should deliver the `version` message first
+followed by *in-order* application messages. That is, if we see phase
+3, then 2, then 1 the application should see 1, 2, 3 delivered to it
+in sequence after the phase 1 message arrives.
+
 If any message cannot be successfully decrypted, the mood is set to "scary",
 and the wormhole is closed, the nameplate/mailbox
 will be released, and the WebSocket connection will be dropped.
