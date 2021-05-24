@@ -30,7 +30,7 @@ both connect to a relay server.
 
 ## Roles
 
-The Transit protocol has pre-defined "Leder" and "Follower" roles (unlike
+The Transit protocol has pre-defined "Leader" and "Follower" roles (unlike
 Wormhole, which is symmetric/nobody-goes-first), which are called "Sender" and "Receiver"
 for historical reasons. Each connection must have exactly one Sender and exactly one Receiver.
 If the application using transfer does not provide this distinction, some deterministic
@@ -48,7 +48,8 @@ This may be relaxed in the future, much as Wormhole was.
 
 Each Transit object has a set of "abilities". These are outbound connection
 mechanisms that the client is capable of using. The basic CLI tool (running
-on a normal computer) has two abilities: `direct-tcp-v1` and `relay-v1`.
+on a normal computer) has these abilities: `direct-tcp-v1`, `relay-v1`,
+`tor-tcp-v1`, `direct-ws-v1` and `direct-wss-v1`.
 
 * `direct-tcp-v1` indicates that it can make direct outbound TCP connections to a
   requested host and port number.
@@ -138,8 +139,9 @@ protocol is intended to make this no more than a minor nuisance.
 ## Relay Handshake (`direct-relay-v1`)
 
 The **Transit Relay** is a host which offers TURN-like services for
-magic-wormhole instances. It uses a TCP-based protocol with a handshake to
-determine which connection wants to be connected to which.
+magic-wormhole instances. Clients connect to the relay either via TCP
+or via WebSocket with a handshake to determine which connection wants
+to be connected to which.
 
 When connecting to a relay, the Transit client first writes RELAY-HANDSHAKE
 to the socket, which is `please relay %s\n`, where `%s` is the hex-encoded
@@ -163,15 +165,19 @@ attempting to use the relay. If it has no viable direct hints, it will start
 using the relay right away. This prefers direct connections, but doesn't
 introduce completely unnecessary stalls.
 
-The Transit client can attempt connections to multiple relays, and uses the
-first one that passes negotiation. Each side combines a locally-configured
-hostname/port (usually "baked in" to the application, and hosted by the
-application author) with additional hostname/port pairs that come from the
-peer. This way either side can suggest the relays to use. The `wormhole`
-application accepts a `--transit-helper tcp:myrelay.example.org:12345`
-command-line option to supply an additional relay. The connection hints
-provided by the Transit instance include the locally-configured relay, along
-with the dynamically-determined direct hints. Both should be delivered to the
+The Transit client attempts connections to multiple relays, and uses
+the first one that passes negotiation. Each side combines a
+locally-configured hostname/port (usually "baked in" to the
+application, and possibly hosted by the application author) with
+additional hostname/port pairs that come from the peer. This way
+either side can suggest the relays to use. The `wormhole` application
+accepts configuration switch that takes as input, the relay server's
+address, for eg: `tcp:myrelay.example.org:12345` or
+`ws://myrelay.example.org:4002` as command-line option to supply an
+additional relay. The address has three elements: the protocol, the
+hostname and the port. The connection hints provided by the Transit
+instance include the locally-configured relay, along with the
+dynamically-determined direct hints. Both should be delivered to the
 peer.
 
 ## Encryption
