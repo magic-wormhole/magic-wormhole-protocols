@@ -172,7 +172,7 @@ application, and possibly hosted by the application author) with
 additional hostname/port pairs that come from the peer. This way
 either side can suggest the relays to use. The `wormhole` application
 accepts configuration switch that takes as input, the relay server's
-address, for eg: `tcp:myrelay.example.org:12345` or
+address, e.g.: `tcp:myrelay.example.org:12345` or
 `ws://myrelay.example.org:4002` as command-line option to supply an
 additional relay. The address has three elements: the protocol, the
 hostname and the port. The connection hints provided by the Transit
