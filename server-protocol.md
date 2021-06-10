@@ -70,13 +70,6 @@ messages. Clients must ignore unrecognized message types from the Server.
 
 ## Connection-Specific (Client-to-Server) Messages
 
-The first thing each client sends to the server, immediately after the
-WebSocket connection is established, is a `bind` message. This specifies the
-AppID and side (in keys `appid` and `side`, respectively) that all subsequent
-messages will be scoped to. While technically each message could be
-independent (with its own `appid` and `side`), I thought it would be less
-confusing to use exactly one WebSocket per logical wormhole connection.
-
 The first thing the server sends to each client is the `welcome` message.
 This is intended to deliver important status information to the client that
 might influence its operation. The Python client currently reacts to the
@@ -92,6 +85,34 @@ following keys (and ignores all others):
   future version of the protocol requires a rate-limiting CAPTCHA ticket or
   other authorization record, the server can send `error` (explaining the
   requirement) if it does not see this ticket arrive before the `bind`.
+* `permission-required`: a set of available authentication methods,
+  proof of work challenges etc. The client needs to "solve" one of
+  them in order to get access to the service.
+
+The client should examine the `permissions-required` methods (if
+present) and select one to use (see also "Permission to Use the
+Server" below).
+
+* If the client doesn't send a `submit-permissions` message (or it is
+  invalid or otherwise unacceptable) the server either proceeds anyway
+  (because it is allowing all access) or sends a "permission denied"
+  error message and closes the connection.
+
+* If the client doesn't support any permissions methods it should show
+  an error to the user and disconnect. (If the server is allowing
+  permission-less connections it should include the method `none` in
+  its list).
+
+* Backwards compatibility: older clients will always send the `bind`
+  message immediately (without waiting for the `welcome` message). The
+  server responds the same way as if the client had sent no
+  `submit-permissions` message (see above).
+
+The `bind` message specifies the AppID and side (in keys `appid` and
+`side`, respectively) that all subsequent messages will be scoped to.
+While technically each message could be independent (with its own
+`appid` and `side`), I thought it would be less confusing to use
+exactly one WebSocket per logical wormhole connection.
 
 A `ping` will provoke a `pong`: these are only used by unit tests for
 synchronization purposes (to detect when a batch of messages have been fully
@@ -103,6 +124,62 @@ If any client->server command is invalid (e.g. it lacks a necessary key, or
 was sent in the wrong order), an `error` response will be sent, This response
 will include the error string in the `error` key, and a full copy of the
 original message dictionary in `orig`.
+
+
+## Permission to Use the Server
+
+Server operators may wish to deny service to some clients. We
+generally refer to this as "Permission" and imagine future additions
+of use-cases and methods, although only one such pair is decribed
+currently.
+
+One such use-case is if the server is under a Denial of Service (DoS)
+attack or other malicious activity. We describe a "proof of work"
+scheme for clients to gain permission to use a server under DoS
+attack.
+
+In the `welcome` message the server may include a `permission-required` key. If provided, this will point to a `dict` with one key per supported method along with any method-specific options.
+For example:
+
+    {
+        "none": {}
+        "hashcash": {
+            "bits": 6,
+            "resource": "resource-string"
+        }
+    }
+
+Currently, the following are supported by the protocol:
+
+* `none`: no permission required, send a normal `bind`.
+* `hashcash`: Includes keys for `bits` and `resource` used for input
+   as per the [Hashcash](http://hashcash.org) specifications. The
+   resource string is arbitrary and the client shouldn't depend on any
+   structure in it. The resource string cannot contain a `:`
+   character. The client must include a reply that conforms to the
+   [Hashcash
+   v1](http://hashcash.org/docs/hashcash.html#stamp_format__version_1_)
+   format in the `submit-permissions` message:
+
+    {
+        "method": "hashcash",
+        "stamp": "1:6:210723:resource-string::NmZNF4eIbk87mqYz:000003n"
+    }
+
+The above stamp was generated with `hashcash -b 6 -m
+"resource-string"`. Note that the number of bits is quite likely to be
+higher than 6 (hashcash specifies 20 as the default). Servers may
+choose any number and may increase it if usage or abuse is too high.
+
+More methods may be added to the protocol in future. Clients must
+ignore methods they do not support. Clients may choose any supported
+method.
+
+Using TLS is strongly encouraged. This at minimum increases privacy of
+clients. Using any permission methods with a bearer-token-like scheme
+(as hashcash does above) over an insecure connections allows passive
+observers to use the hard-earned token for themselves.
+
 
 ## Nameplates
 
@@ -200,8 +277,9 @@ ordering: clients must do both if they need to.
 This lists all message types, along with the type-specific keys for each (if
 any), and which ones provoke direct responses:
 
-* S->C welcome {welcome:}
-* (C->S) bind {appid:, side:}
+* S->C welcome {welcome: {permission-required: hashcash: {}}
+* (C->S) submit-permissions {..} (optional)
+* (C->S) bind {appid:, side:, }
 * (C->S) list {} -> nameplates
 * S->C nameplates {nameplates: [{id: str},..]}
 * (C->S) allocate {} -> allocated
