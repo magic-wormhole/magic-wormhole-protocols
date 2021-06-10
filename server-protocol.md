@@ -71,11 +71,11 @@ messages. Clients must ignore unrecognized message types from the Server.
 ## Connection-Specific (Client-to-Server) Messages
 
 The first thing each client sends to the server, immediately after the
-WebSocket connection is established, is a `bind` message. This specifies the
-AppID and side (in keys `appid` and `side`, respectively) that all subsequent
-messages will be scoped to. While technically each message could be
-independent (with its own `appid` and `side`), I thought it would be less
-confusing to use exactly one WebSocket per logical wormhole connection.
+WebSocket connection is established, is an optional `abilities` message
+and then a `bind` message. Clients may support zero or more "permission"
+abilities; see "Permission and Abilities" below. If the client
+supports no such methods, it sends a `bind` message first. Otherwise,
+the client sends an `abilities` message.
 
 The first thing the server sends to each client is the `welcome` message.
 This is intended to deliver important status information to the client that
@@ -92,6 +92,21 @@ following keys (and ignores all others):
   future version of the protocol requires a rate-limiting CAPTCHA ticket or
   other authorization record, the server can send `error` (explaining the
   requirement) if it does not see this ticket arrive before the `bind`.
+* `permission-required`: will only be sent if the client first sent an
+  `abilities` message, and then only if the server needs additional
+  authorization to use currently (e.g. if under a DoS attack)
+
+After receiving the `welcome` message, the client checks if there is a
+`permission-required` key. If so, it sends a `permission` message; see
+"Permsision and Abilities" below for more details on the
+`abilities` and `permission` messages.
+
+Whether or not a `permission` is sent, the client next sends a `bind`
+message. This specifies the AppID and side (in keys `appid` and
+`side`, respectively) that all subsequent messages will be scoped
+to. While technically each message could be independent (with its own
+`appid` and `side`), I thought it would be less confusing to use
+exactly one WebSocket per logical wormhole connection.
 
 A `ping` will provoke a `pong`: these are only used by unit tests for
 synchronization purposes (to detect when a batch of messages have been fully
@@ -103,6 +118,52 @@ If any client->server command is invalid (e.g. it lacks a necessary key, or
 was sent in the wrong order), an `error` response will be sent, This response
 will include the error string in the `error` key, and a full copy of the
 original message dictionary in `orig`.
+
+
+## Permission and Abilities
+
+Server operators may wish to deny service to some clients.
+
+One such use-case is if the server is under a Denial of Service (DoS)
+attack or other malicious activity.
+
+The `abilities` message has one key for every permission method it
+supports whose value is a `dict` containing any options for that
+method. Currently, the following are supported by the protocol:
+
+* `hashcash`: this method takes no options so is an empty `dict`.
+
+If the server wishes to use one of the permission abilities, it will
+include a `permission` key in the `welcome` message mapping the
+ability to use to ability-specfic options.
+
+For `hashcash`, the server will send::
+
+    {
+        "permission": {
+            "hashcash": {
+                "bits": 6,
+                "resource": "arbitrary string"
+            }
+        }
+    }
+
+The `bits` and `resource` are used as input as per the
+[Hashcash](http://hashcash.org) specifications. The client must
+include a reply that conforms to the [Hashcash
+v1](http://hashcash.org/docs/hashcash.html#stamp_format__version_1_)
+format in the `submit-permissions` message::
+
+    {
+        "hashcash": {
+            "stamp": "1:20:210610:arbitrary string::i9CmTZR6oGBx7kr2:06czd"
+        }
+    }
+
+The above stamp was generated with `hashcash -m "arbitrary string" -b 6`.
+
+More abilities may be added to the protocol in future.
+
 
 ## Nameplates
 
