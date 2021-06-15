@@ -1,7 +1,7 @@
 # The Magic Wormhole protocols
 
 [![Matrix][matrix-room-image]][matrix-room-url]
-![Irc][irc-room-image]
+[![Irc][irc-room-image]][irc-room-url]
 
 The protocols were originally developed alongside the Python implementation in a common repository. But now, as there are multiple implementations, discussion of the protocols should be separated into their own repository.
 
@@ -11,4 +11,5 @@ The 1.0 release simply mirrors the "status quo", as rendered on <https://magic-w
 
 [matrix-room-image]: https://img.shields.io/badge/matrix.org-%23magic--wormhole-brightgreen
 [matrix-room-url]: https://matrix.to/#/#magic-wormhole:matrix.org
-[irc-room-image]: https://img.shields.io/badge/chat.freenode.net-%23magic--wormhole-brightgreen
+[irc-room-image]: https://img.shields.io/badge/irc.libera.chat-%23magic--wormhole-brightgreen
+[irc-room-url]: https://web.libera.chat/
