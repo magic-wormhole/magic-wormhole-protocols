@@ -11,15 +11,12 @@ connection has been lost, and then coordinate the construction of a
 replacement. Within this connection, a series of queued-and-acked subchannel
 messages are used to open/use/close the application-visible subchannels.
 
-## Versions and can-dilate
+## Capability discovery
 
-The Wormhole protocol includes a `versions` message sent immediately after
-the shared PAKE key is established. This also serves as a key-confirmation
-message, allowing each side to confirm that the other side knows the right
-key. The body of the `versions` message is a JSON-formatted string with keys
-that are available for learning the abilities of the peer. Dilation is
-signaled by a key named `can-dilate`, whose value is a list of strings. Any
-version present in both side's lists is eligible for use.
+In the `versions` phase of the protocol, the flag `dilation-v1` may be added to
+the `abilities` list. If both sides include that string in theirs, dilation
+messages may be used. If, in the future, there are multiple dilation versions,
+the highest one supported by both sides must be used.
 
 ## Leaders and Followers
 
