@@ -92,13 +92,17 @@ following keys (and ignores all others):
   future version of the protocol requires a rate-limiting CAPTCHA ticket or
   other authorization record, the server can send `error` (explaining the
   requirement) if it does not see this ticket arrive before the `bind`.
-* `permission-required`: will only be sent if the client first sent an
-  `abilities` message, and then only if the server needs additional
-  authorization to use currently (e.g. if under a DoS attack)
+* `permission-required`: causes the client to reply with a
+  `submit-permissions` message with data for whichever permission
+  method the server selected (see "Permission and Abilities"
+  below). This key will only be present if the client sent an
+  `abilities` message and the server currently needs additional
+  authorization to use (e.g. if under a DoS attack)
+
 
 After receiving the `welcome` message, the client checks if there is a
-`permission-required` key. If so, it sends a `permission` message; see
-"Permsision and Abilities" below for more details on the
+`permission-required` key. If so, it sends a `submit-permissions`
+message; see "Permission and Abilities" below for more details on the
 `abilities` and `permission` messages.
 
 Whether or not a `permission` is sent, the client next sends a `bind`
@@ -127,15 +131,16 @@ Server operators may wish to deny service to some clients.
 One such use-case is if the server is under a Denial of Service (DoS)
 attack or other malicious activity.
 
-The `abilities` message has one key for every permission method it
-supports whose value is a `dict` containing any options for that
-method. Currently, the following are supported by the protocol:
+The client to server `abilities` message has one key for every
+supported permission method.  Each points to a `dict` containing any
+options for that method. Currently, the following are supported by the
+protocol:
 
 * `hashcash`: this method takes no options so is an empty `dict`.
 
 If the server wishes to use one of the permission abilities, it will
-include a `permission` key in the `welcome` message mapping the
-ability to use to ability-specfic options.
+include a `permission` key in the `welcome` message mapping the chosen
+ability to ability-specfic options.
 
 For `hashcash`, the server will send::
 
