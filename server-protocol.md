@@ -201,6 +201,16 @@ The server also probably chooses based on other factors (for DoS mitigation, tha
 Another way to choose which method to use is to have the server list everything it supports and have the client decide.
 So that would allow a method very similar to the "hybrid" approach, except without the `submit-permissions` method at all: the permission could be in the `bind` message.
 
+* server-decides, pros:
+    * can request zero permissions when not under attack
+    * doesn't need to prepare challenges that won't be used (e.g. nonces or similar)
+
+* server-decides, cons:
+    * client may reveal "too much" information (e.g. an account-name or key) when it doesn't need to
+
+* client-decides, pros:
+    * client can choose most-private method
+
 
 ### Hybrid Alternative
 
@@ -225,6 +235,25 @@ This makes the above table look like this:
 It also takes half of a round-trip out of the (new) exchange versus the _other_ new exchange.
 This method adds keys to `bind` and `welcome` and one new message: `submit-permission`.
 
+
+### Hybrid Alternative with "Client Decides" Negotiation
+
+Further to the above "hybrid alternative" is one where the client (not the server) decides which permissino method to use.
+
+New clients don't send `bind` right away, but wait for `welcome`.
+New server sends `welcome` right away and includes all "permissions" methods it supports along with any permission-specific information (such as hashcash settings, nonce, challenge, etc).
+
+New clients choose a permission method (one option should be "none" if the server currently allows anonymous use) and include it (if any) in the `bind` message.
+Old clients will continue to send a `bind` right away and won't include permission information (but wouldn't include it anyway).
+
+This makes the above table look like this:
+
+* old client, new server: <-welcome ->bind error ...
+* new client, new server: <-welcome[challenge] ->bind+permission ...
+* old client, old server: ->bind <-welcome ...
+* new client, old server: <-welcome ->bind ...
+
+Here keys are added to existing messages and the protocol already says unknown ones should be ignored.
 
 ## Nameplates
 
