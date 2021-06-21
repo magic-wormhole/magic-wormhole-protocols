@@ -133,8 +133,13 @@ attack or other malicious activity.
 
 The client to server `abilities` message has one key for every
 supported permission method.  Each points to a `dict` containing any
-options for that method. Currently, the following are supported by the
-protocol:
+options for that method. For example::
+
+    {
+        "hashcash": {}
+    }
+
+Currently, the following are supported by the protocol:
 
 * `hashcash`: this method takes no options so is an empty `dict`.
 
@@ -168,6 +173,47 @@ format in the `submit-permissions` message::
 The above stamp was generated with `hashcash -m "arbitrary string" -b 6`.
 
 More abilities may be added to the protocol in future.
+
+### XXX Abilities Discussion / Notes
+
+https://github.com/magic-wormhole/magic-wormhole/issues/126
+https://github.com/magic-wormhole/magic-wormhole-protocols/pull/6#issuecomment-834641114
+
+With the "abilities / welcome / submit-permissions" dance, we can support old and new clients.
+But there's also "old or new server" to consider.
+The cases are outlined below, indicating the opening messages.
+
+old client, new server: ->bind <-welcome[error] ...
+new client, new server: ->abilities <-welcome[challenge] ->submit-permissions ->bind ...
+old client, old server: ->bind <-welcome ...
+new client, old server: ->abilities <-PROTOCOL_ERROR X
+
+The tricky case is "new client, old server" where the old server must respond with a protocol error.
+So, choosing this new message flow depends on upgrading servers _first_, before clients.
+Or, teach new clients to respond to the protocol error by using the old flow (but this means a new connection).
+
+### Hybrid Alternative
+
+The PR https://github.com/magic-wormhole/magic-wormhole-protocols/pull/6 upgrades the `welcome` message to include a challenge.
+We could make a hyrbid of the above two designs, like so:
+
+New-Server doesn't send a message right away, but waits for an incoming one.
+Clients send `bind` immediately (still) and include an `abilities` key, similer to the proposed ABILITIES above.
+With mitigation turned on, a New-Server will choose one of the `abilities` given and send a challenge in the `welcome`.
+If there are no `abilities` (or none the server knows) an `error` is sent in the `welcome`.
+A new client receiving the challenge responds to the `welcome` with a `submit-permission` (new message).
+If the challenge is correct, the server allows the client to proceed.
+If no challenge is given (i.e. an old client, which does not know to send `submit-permission`) then the client issues an error and closes the connection for any further interaction.
+
+This makes the above table look like this:
+
+old client, new server: ->bind <-welcome[error] ...
+new client, new server: ->bind <-welcome[challenge] ->submit-permission ...
+old client, old server: ->bind <-welcome ...
+new client, old server: ->bind <-welcome ...
+
+It also takes half of a round-trip out of the (new) exchange versus the _other_ new exchange.
+This method adds keys to `bind` and `welcome` and one new message: `submit-permission`.
 
 
 ## Nameplates
@@ -266,7 +312,8 @@ ordering: clients must do both if they need to.
 This lists all message types, along with the type-specific keys for each (if
 any), and which ones provoke direct responses:
 
-* S->C welcome {welcome:}
+* (C->S) abilities {hashcash: } -> welcome
+* S->C welcome {welcome: {hashcash: {}}
 * (C->S) bind {appid:, side:}
 * (C->S) list {} -> nameplates
 * S->C nameplates {nameplates: [{id: str},..]}
