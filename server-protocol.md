@@ -192,6 +192,16 @@ The tricky case is "new client, old server" where the old server must respond wi
 So, choosing this new message flow depends on upgrading servers _first_, before clients.
 Or, teach new clients to respond to the protocol error by using the old flow (but this means a new connection).
 
+### XXX Negotiation of Method
+
+One of the things that has to happen is to decide on which (if any) "permission" method to use.
+Implicit in the above is that the server decides: it chooses a method based on what the client supports.
+The server also probably chooses based on other factors (for DoS mitigation, that might be "are we currently under attack").
+
+Another way to choose which method to use is to have the server list everything it supports and have the client decide.
+So that would allow a method very similar to the "hybrid" approach, except without the `submit-permissions` method at all: the permission could be in the `bind` message.
+
+
 ### Hybrid Alternative
 
 The PR https://github.com/magic-wormhole/magic-wormhole-protocols/pull/6 upgrades the `welcome` message to include a challenge.
