@@ -84,6 +84,22 @@ and handle them accordingly, if present:
   to the user. The value *should* be a plain string.
 * `error`: The client should show this message to the user and then terminate.
   The value *should* be a plain string.
+* `relays`: An advertizement list of relay servers. It is a JSON list of which each
+  entry may look like this:
+    ```json
+    {
+      "url": "tcp:myrelay.example.org:12345",
+      "country": "IT",
+      "continent": "EU",
+    }
+    ```
+  The only mandatory key is `url`, all others are optional information to help the client
+  choose an appropriate one. Further keys may be added in the future. Clients must not
+  expect the protocol to be `tcp` (expect websockets support in the future). Clients
+  should make a preselection of viable relay servers (which may include entries from other
+  sources as well), and randomly select one or two (together with the other side's, this
+  makes up to four, which should be enough to have a high probability of at least one being
+  reachable).
 * `permission-required`: a set of available authentication methods,
   proof of work challenges etc. The client needs to "solve" one of
   them in order to get access to the service.
