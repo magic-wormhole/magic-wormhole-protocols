@@ -88,15 +88,21 @@ and handle them accordingly, if present:
   entry may look like this:
     ```json
     {
-      "url": "tcp:myrelay.example.org:12345",
+      "url": "tcp://myrelay.example.org:12345/",
       "country": "IT",
       "continent": "EU",
     }
     ```
-  The only mandatory key is `url`, all others are optional information to help the client
-  choose an appropriate one. Further keys may be added in the future. Clients must not
-  expect the protocol to be `tcp` (expect websockets support in the future). Clients
-  should make a preselection of viable relay servers (which may include entries from other
+  * The only mandatory key is `url`, all others are optional information to help the client
+    choose an appropriate one.
+      * Clients must not expect the protocol to be `tcp` (expect websockets support in the future).
+      * A `tcp`-schemed URL only has the `scheme` and `authority` part (`path` is empty, no `query`
+      and `fragment`), and the `authority` part only has `host` and `port` (no `userinfo`). There is
+      no default port number. Thus, it looks like `tcp://host:port/`, nothing more.
+  * `country` and `continent` are two-letter capitalized country/continent codes following ISO 3166.
+  * Further keys may be added in the future.
+
+  Clients should make a preselection of viable relay servers (which may include entries from other
   sources as well), and randomly select one or two (together with the other side's, this
   makes up to four, which should be enough to have a high probability of at least one being
   reachable).
