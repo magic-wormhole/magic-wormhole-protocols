@@ -30,7 +30,7 @@ both connect to a relay server.
 
 ## Roles
 
-The Transit protocol has pre-defined "Leder" and "Follower" roles (unlike
+The Transit protocol has pre-defined "Leader" and "Follower" roles (unlike
 Wormhole, which is symmetric/nobody-goes-first), which are called "Sender" and "Receiver"
 for historical reasons. Each connection must have exactly one Sender and exactly one Receiver.
 If the application using transfer does not provide this distinction, some deterministic
@@ -176,7 +176,7 @@ peer.
 
 ## Encryption
 
-If desired\*, transit provides an enrypted **record-pipe**, which means the two
+If desired\*, transit provides an encrypted **record-pipe**, which means the two
 sides can and receive whole records, rather than unframed bytes. This is a side-effect of the
 encryption (which uses the NaCl "secretbox" function). The encryption adds 44
 bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
@@ -217,3 +217,111 @@ both sides have their own nonce.
 For each received record, the nonce must be checked to be equal to the expected value,
 which has to be tracked. Thus, there are 4 nonces in total, two per direction which are
 kept in sync.
+
+## On finding a direct connection
+
+Because it is easy to get things wrong. This section only applies to the
+`direct-tcp-v1` hint. The following section is closely tied to the operating
+system's sockets API, and the the verbs *bind*, *listen*, *accept* and *connect*
+will be used accordingly. Note that this is more a guide than a specification,
+since it handles implementation details that should all mostly be compatible
+with each other (and when not, failure is not critical).
+
+### The easy way
+
+Each side binds a new TCP socket, enumerates all local non-loopback IP addresses
+and exchanges port+IPs with the peer. Then, both sides listen on their socket
+while simultaneously trying to connect to the peer. As described above, once a
+handshake is successful, all other attempts are aborted and the resources closed.
+
+### Punching holes through firewalls
+
+To go through firewalls, a different approach must be used instead: first, both
+sides again need to bind a socket and exchange hints. This time however, the
+`SO_REUSEADDR` option must be set. Then, both sides try to connect to each of
+the peer's IPs. For every connection attempt, they bind a new socket on the same
+port again. Also you read that right, there are no `listen` or `accept` calls
+involved.
+
+This works only with firewalls that silently filter packets and which don't send
+back any RST packets. Unfortunately, this is the default behavior of the kernel
+when no firewall is active (or the firewall allowed) the packets. This means
+that the firewall hole punching method does *not* work when *no* firewall is
+active (Fun fact: if one side has a firewall and the other side doesn't then
+connection attempts will work or fail depending on which side sent their packets
+first—I'm really glad for you that you didn't have to debug this …). Thus,
+**this method can only be an addition to the "easy" way** specified above. Sadly,
+this means that the number of hints – and thus, attempted connections – is
+doubled. If you manage to listen and accept on the same port so that only one
+set of hints needs to be sent out, please contact `piegames` with your findings.
+Also read [this paper](https://bford.info/pub/net/p2pnat/) (Python code
+[here](https://github.com/dwoz/python-nat-hole-punching/)) for more details on
+the subject.
+
+### Traversing NAT
+
+To additionally traverse through a potential NAT, clients need to query their
+external IP address from a STUN server\*. Because of how NATs work, the socket
+must again be bound with `SO_REUSEADDR` and its port must be used for the hint.
+Clients may `shutdown` the connection to the STUN server, but the socket must
+be kept open. No enhanced NAT detection or other advanced STUN features need to
+be used: we only care about the external IP address and if it fails we can always
+simply fall back to the relay. Generally, a failure to do STUN should be silent
+and the query should time out rather quickly.
+
+Recall that NATs are mainly a hack around an outgrown address space and that IPv6
+users usually have a globally routed public address, for which simply firewall
+hole punching is sufficient. For this reason, you only need to do an IPv4 query
+and you always want to prefer IPv6 connections.
+
+\* Since you should always host your own for production use (and also most of
+the public ones don't support TCP), we provide <tcp://stun.magic-wormhole.io:3478>
+as part of the Magic Wormhole infrastructure (please only use for Magic Wormhole
+clients).
+
+### Choosing the best connection
+
+When multiple connection attempts go through, it is up to the leader side to
+select the one to use and to cancel the other ones. A naive implementation might
+simply use the first one that got established, in the assumption that it will be
+the best (it probably had the best round trip time, modulo some jitter). But next
+to that, there are other criteria that might be taken in on the rating:
+
+1. Prefer direct connections over relay ones
+2. Prefer local connections over those that route through the internet
+3. Prefer IPv6 over IPv4
+4. (the optional `priority` field on the hints should be ignored for now, as it
+  is under-specified to the point of being useless.)
+5. (Similar to point 4., an interface letting the user specify this might be
+  provided.)
+
+The first two points are easy to implement: after a connection established, wait
+some time more to see if a "better" connection shows up. The waiting time should
+be roughly derived from the time that was needed for the first one, but with some
+upper bound to not annoy users.
+
+The third point is a bit fuzzier: the line quickly becomes blurry when VPNs and
+corporate network setups are involved. For IPv4, simply check whether the connection
+was made over the external IP address or if it uses a prefix commonly used for
+local networks. For IPv6, an easy heuristic is to say that a connection where
+both sides' IP addresses have a longer prefix in common is preferable.
+
+### Potential pitfalls and other considerations
+
+- The socket options that must be set are really subtle, for example read
+  [this excellent StackOverflow answer](https://stackoverflow.com/a/14388707/6094756)
+  for more details. In short, you need to check whether the operating system
+  supports reusing ports and which options must be set—on some systems,
+  `SO_REUSEADDR` suffices, others provide `SO_REUSEPORT`. If the system doesn't
+  support it, fall back on the "easy" way and/or relay servers.
+- To prevent port hijacking, make sure that the port may not be reused by other
+  processes. Some systems provide special exclusivity options, while others enable
+  them by default.
+- From the first moment a socket is bound to a port, that socket must be kept
+  open. Simply binding and not using it is okay. If you just bind one to get a
+  free port and then close it immediately, another application may (accidentally)
+  hijack the port until you want to use it again.
+- Generally, all implementations should bind only IPv6 sockets (`AF_INET6`). The
+  kernel will take care of translating the packets to IPv4 if required. That way,
+  no special support is required to handle both stacks. Conversely, only binding
+  to `127.0.0.1` means that the application will only support IPv4.
