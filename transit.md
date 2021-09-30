@@ -187,7 +187,9 @@ bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
 so you might want to use slightly larger records for efficiency. The maximum
 record size is 2^32 bytes (4GiB). The whole record must be held in memory at
 the same time, plus its ciphertext, so very large ciphertexts are not
-recommended.
+recommended. Transit implementations must implement a mechanism to set an upper
+bound to the message size, which protocols using transit may use. That value should
+default to 64MiB, which is a common default for WebSockets or HTTP communication.
 
 Transit provides **confidentiality**, **integrity**, and **ordering** of
 records. Passive attackers can only do the following:
