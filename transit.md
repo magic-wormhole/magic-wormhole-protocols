@@ -142,9 +142,13 @@ magic-wormhole instances. It uses a TCP-based protocol with a handshake to
 determine which connection wants to be connected to which.
 
 When connecting to a relay, the Transit client first writes RELAY-HANDSHAKE
-to the socket, which is `please relay %s\n`, where `%s` is the hex-encoded
-32-byte HKDF derivative of the transit key, using `transit_relay_token` as
-the context. The client then waits for `ok\n`.
+to the socket, which is `please relay $channel for $side\n`, where `$channel`
+is the hex-encoded 32-byte HKDF derivative of the transit key,
+using `transit_relay_token` as the context, and `$side` is a random per session
+identifier. The `side` is used to deduplicate a client opening multiple
+connections to the same relay server: without, it may result in a loopback
+to itself and a dead-lock of the protocol.
+The client then waits for `ok\n`.
 
 The relay waits for a second connection that uses the same token. When this
 happens, the relay sends `ok\n` to both, then wires the connections together,
