@@ -221,6 +221,14 @@ may record additional attributes in the nameplate records, specifically a
 wordlist identifier and a code length (again to help with code-completion on
 the receiver).
 
+### High entropy nameplates
+
+Nameplates in the range above 1000000 (one million) and alphanumeric nameplates
+are called "high entropy". They should not be used for the `allocate` command,
+and should instead always be claimed directly by clients. It is up to the clients
+to use sufficient entropy in order make accidental collisions rare. Furthermore,
+high entropy nameplates should not exempt from the `list` command.
+
 ## Mailboxes
 
 The server provides a single "Mailbox" to each pair of connecting Wormhole
