@@ -47,28 +47,32 @@ This may be relaxed in the future, much as Wormhole was.
 ## Abilities
 
 Each Transit object has a set of "abilities". These are outbound connection
-mechanisms that the client is capable of using. The following abilities are
-specified in this document:
+mechanisms that the client is capable of using. The basic CLI tool (running
+on a normal computer) has two abilities: `direct-tcp-v1` and `relay-v1`.
 
 * `direct-tcp-v1` indicates that it can make direct outbound TCP connections to a
   requested host and port number.
 * `relay-v1` indicates it can connect to the Transit Relay and speak the
   matching protocol.
-* `relay-v2` is the same as `relay-v1`, but it adds support for an improved hint
-  encoding that allows using WebSockets (and possibly other protocols) for
-  transport towards the relay server.
-* `tor-tcp-v1` allows both sides finding eath other over Tor
+* `tor-tcp-v1`
+
+Future implementations may have additional abilities, such as connecting
+directly to Tor onion services, I2P services, WebSockets, WebRTC, or other
+connection technologies. Implementations on some platforms (such as web
+browsers) may lack `direct-tcp-v1` or `relay-v1`.
 
 Together with each ability, the Transit object can create a
 list of "hints", which tell the respective handshake how to find the other side.
-Each ability declares its own set of hints; hints have a `type` that is equal
-to the name of the ability they hint for.
+Hints usually contain a `hostname`, a `port` and an optional `priority`.
+Each hint will fall under one of the abilities that the peer indicated it
+could use. Hints have types like `direct-tcp-v1`, `tor-tcp-v1`, and
+`relay-v1`.
 
 For example, if our peer can use `direct-tcp-v1`, then our Transit object
 will deduce our local IP addresses (unless forbidden, i.e. we're using Tor),
 listen on a TCP port, then send a list of `direct-tcp-v1` hints pointing at
-all of them. If our peer can use `relay-v1`/`relay-v2`, then we'll connect to
-our relay server and give the peer a hint to the same.
+all of them. If our peer can use `relay-v1`, then we'll connect to our relay
+server and give the peer a hint to the same.
 
 `tor-tcp-v1` hints indicate an Onion service, which cannot be reached without
 Tor. `direct-tcp-v1` hints can be reached with direct TCP connections (unless
@@ -131,14 +135,11 @@ your wormhole) can cause their peer to make a TCP connection (and send the
 handshake string) to any IP address and port of their choosing. The handshake
 protocol is intended to make this no more than a minor nuisance.
 
-## Relay Handshake (`relay-v1`, `relay-v2`)
+## Relay Handshake (`direct-relay-v1`)
 
 The **Transit Relay** is a host which offers TURN-like services for
-magic-wormhole instances. Clients connect to the relay and do a handshake
-to determine which connection wants to be connected to which. The connection
-is independent of the transport protocol (currently supported are TCP and
-WebSockets), and the relay will also connect two clients using different protocols
-together.
+magic-wormhole instances. It uses a TCP-based protocol with a handshake to
+determine which connection wants to be connected to which.
 
 When connecting to a relay, the Transit client first writes RELAY-HANDSHAKE
 to the socket, which is `please relay $channel for $side\n`, where `$channel`
@@ -170,149 +171,12 @@ The Transit client can attempt connections to multiple relays, and uses the
 first one that passes negotiation. Each side combines a locally-configured
 hostname/port (usually "baked in" to the application, and hosted by the
 application author) with additional hostname/port pairs that come from the
-peer. This way either side can suggest the relays to use. The connection hints
+peer. This way either side can suggest the relays to use. The `wormhole`
+application accepts a `--transit-helper tcp:myrelay.example.org:12345`
+command-line option to supply an additional relay. The connection hints
 provided by the Transit instance include the locally-configured relay, along
 with the dynamically-determined direct hints. Both should be delivered to the
 peer.
-
-
-## Canonical abilities encodings
-
-The transit protocol relies on an existing secured (but possibly low-bandwidth)
-communication channel to exchange the abilities and hints. Thus, it has no
-influence over how they are encoded. However, we make a suggestion using JSON
-messages for other protocols to use.
-
-Abilities are encoded as a list, each item having a `type` tag. An ability may
-not appear more than once in the list. Setting `relay-v2` requires also setting
-`relay-v1` for backwards compatibility.
-
-```json
-[
-  {
-    "type": "<string, one of {direct-tcp-v1, relay-v1, tor-tcp-v1}>"
-  }
-]
-```
-
-Example for the full abilities set:
-
-```json
-[
-  { "type": "direct-tcp-v1" },
-  { "type": "relay-v1" },
-  { "type": "relay-v2" },
-  { "type": "tor-tcp-v1" }
-]
-```
-
-## Canonical hint encodings
-
-Hints are encoded as list of objects. Every object contains a `type` field,
-which further determines its encoding.
-
-### `direct-tcp-v1`, `tor-tcp-v1`
-
-```json
-{
-  "type": "direct-tcp-v1" or "tor-tcp-v1",
-  "hostname": <string>,
-  "port": <u16>,
-  "priority": <float; optional>
-}
-```
-
-`hostname` must be compliant with the `host` part of an URL, i.e. it may be an
-IP address or a domain. Furthermore, IPv6 link-local addresses are not supported.
-
-### `relay-v1`, `relay-v2`
-
-```json
-{
-  "type": "relay-v1",
-  "hints": [
-    {
-      "hostname": "<string>",
-      "port": "<tcp port>",
-      "priority": "<number, usually [0..1], optional>"
-    },
-    …
-  ],
-}
-```
-
-```json
-{
-  "type": "relay-v2",
-  "name": "<string, optional>",
-  "hints": [
-    {
-      "type": "tcp",
-      "hostname": "<string>",
-      "port": "<tcp port>"
-    },
-    {
-      "type": "websocket",
-      "url": "<url>"
-    },
-    …
-  ],
-}
-```
-
-A relay server may be reachable at multiple different endpoints and using
-different protocols. All hinted endpoints for a relay server must point to the
-same location, and the relay server must be able to connect any two of these
-endpoints. If this is not the case, the relay server must be advertized using
-multiple distinct hints instead (one per endpoint). Furthermore, a relay server
-may be given a human readable name for UI purposes.
-
-Hints have a `type` field, of which the currently known values are `tcp` and
-`websocket`. Hints of unknown type must be ignored. The `type` field is only
-required for `relay-v2` encoding. In the `relay-v1` incoding, only `tcp` hints
-are supported and the `type` field is implicit.
-
-The encoding of a `tcp` hint is equivalent to the one used by `direct-tcp-v1`.
-
-A hint of type `websocket` has an `url` field instead, which points to the
-WebSocket. Both relay servers and clients should support `wss://` and `ws://`
-URL schemes. If a relay server supports both, they should be advertised using
-two hints.
-
-The `relay-v2` hints are a strict superset of `relay-v1`, i.e. all `tcp` hints
-of the former must be also present in the latter. (This is so that a carefully
-crafted implementation may reuse the same logic to parse both.) If both sides
-are known to support `relay-v2` thanks to the abilities exchange, the `relay-v1`
-hints may be omitted.
-
-Full example value:
-
-```json
-{
-  "type": "relay-v1",
-  "hints": [
-    {
-      "hostname": "example.org",
-      "port": "1234"
-    }
-  ],
-}
-{
-  "type": "relay-v2",
-  "name": "Example relay",
-  "hints": [
-    {
-      "type": "tcp",
-      "hostname": "example.org",
-      "port": "1234"
-    },
-    {
-      "type": "websocket",
-      "url": "wss://example.org:8000"
-    }
-  ],
-}
-```
 
 ## Encryption
 
@@ -472,17 +336,3 @@ both sides' IP addresses have a longer prefix in common is preferable.
   kernel will take care of translating the packets to IPv4 if required. That way,
   no special support is required to handle both stacks. Conversely, only binding
   to `127.0.0.1` means that the application will only support IPv4.
-
-## Future Extensions
-
-* WebSocket: usable by web browsers, not too hard to use by normal computers,
-  requires direct (or relayed) TCP connection
-* WebRTC: usable by web browsers, hard-but-technically-possible to use by
-  normal computers, provides NAT hole-punching for "free"
-* (web browsers cannot make direct TCP connections, so interop between
-  browsers and CLI clients will either require adding WebSocket to CLI, or a
-  relay that is capable of speaking/bridging both)
-* I2P: like Tor, but not capable of proxying to normal TCP hints.
-* ICE-mediated STUN/STUNT: NAT hole-punching, assisted somewhat by a server
-  that can tell you your external IP address and port. Maybe implemented as a
-  uTP stream (which is UDP based, and thus easier to get through NAT).

@@ -76,16 +76,32 @@ The `transit` message mentioned above is encoded following this schema:
 ```json
 {
     "transit": {
-        "abilities-v1": [ … ],
-        "hints-v1": [ … ]
+        "abilities-v1": [
+            {
+                "type": "<string, one of {direct-tcp-v1, relay-v1, tor-tcp-v1}>"
+            }
+        ],
+        "hints-v1": [
+            {
+                "type": "'direct-tcp-v1' or 'tor-tcp-v1'",
+                "hostname": "<string>",
+                "port": "<tcp port>",
+                "priority": "<number, usually [0..1], optional>"
+            },
+            {
+                "type": "relay-v1",
+                "hints": [
+                    {
+                        "hostname": "<string>",
+                        "port": "<tcp port>",
+                        "priority": "<number, usually [0..1], optional>"
+                    }
+                ]
+            }
+        ]
     }
 }
 ```
-
-The `abilities-v1` entries follow the canonical encoding version A described in
-the transit protocol.
-The `hints-v1` entries follow the canonical encoding described in the transit
-protocol.
 
 The file-transfer application, when actually sending file/directory data,
 may close the Wormhole as soon as it has enough information to begin opening
@@ -94,6 +110,22 @@ the Transit object, as a UTF-8-encoded JSON-encoded dictionary with `ack: ok`
 and `sha256: HEXHEX` containing the hash of the received data.
 
 ## Future Extensions
+
+Transit will be extended to provide other connection techniques:
+
+* WebSocket: usable by web browsers, not too hard to use by normal computers,
+  requires direct (or relayed) TCP connection
+* WebRTC: usable by web browsers, hard-but-technically-possible to use by
+  normal computers, provides NAT hole-punching for "free"
+* (web browsers cannot make direct TCP connections, so interop between
+  browsers and CLI clients will either require adding WebSocket to CLI, or a
+  relay that is capable of speaking/bridging both)
+* I2P: like Tor, but not capable of proxying to normal TCP hints.
+* ICE-mediated STUN/STUNT: NAT hole-punching, assisted somewhat by a server
+  that can tell you your external IP address and port. Maybe implemented as a
+  uTP stream (which is UDP based, and thus easier to get through NAT).
+
+The file-transfer protocol will be extended too:
 
 * "command mode": establish the connection, *then* figure out what we want to
   use it for, allowing multiple files to be exchanged, in either direction.
