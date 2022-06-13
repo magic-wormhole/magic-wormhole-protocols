@@ -91,6 +91,13 @@ See examples down below, after "Discussion".
 
 ## Discussion and Open Questions
 
+* overall selection of "classic" or "v2" file-transfer
+
+How will clients select between "classic" file-transfer support and Dilation-enabled v2 support?
+
+Perhaps it is sufficient to trigger that on whether Dilation negotiation worked or not: if we have a Dilation connection, then we do "v2 file-transfer" (and use sub-versions to select features there, see next open question).
+If we do not, then "classic" / v1 file-transfer is used.
+
 * (sub)versioning of this protocol
 
 It is likely useful to assign version numbers to either the protocol or to Offer messages.
