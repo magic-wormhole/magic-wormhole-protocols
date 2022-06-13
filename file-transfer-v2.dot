@@ -1,0 +1,70 @@
+digraph {
+        label="File Transfer v2 state-machine";
+        pack=true;
+        rankdir="TB";
+        ranksep="1.0 equally";
+        nodesep=1.5;
+/*graph [nodesep=1.5];*/
+node[];
+edge [labelfloat=true,labelfontsize=16,];
+
+        start [style=bold,fontcolor=blue];
+
+        // the Dilation connection becomes available
+        start -> got_connect[arrowhead=none];
+        got_connect -> await_version;
+        got_connect[shape=box,color=sienna,label="connected\lsend_version"]
+
+        // user creates an Offer
+        start -> create_offer0[arrowhead=none];
+        create_offer0 -> start;
+        create_offer0[shape=box,color=sienna,label="create:Offer\lqueue_offer()"];
+
+        // the other side sends us a Version message
+        await_version -> got_version[arrowhead=none];
+        got_version -> connected;
+        got_version[shape=box,color=purple,label="got:Version\lsend_queued_offers()"];
+
+        // user creates an Offer
+        await_version -> create_offer1[arrowhead=none];
+        create_offer1 -> await_version;
+        create_offer1[shape=box,color=sienna,label="create:Offer\lqueue_offer()"];
+
+        // other side sends offer, we notify our human
+        connected -> got_offer[arrowhead=none];
+        got_offer -> connected;
+        got_offer[shape=box,color=purple,label="got:Offer\lnotify:offer_received"];
+
+        // other side rejects our offer, notify human
+        connected -> reject_offer[arrowhead=none];
+        reject_offer -> connected;
+        reject_offer[shape=box,color=purple,label="got:Reject\lnotify:offer_rejected"];
+
+        // other side accepts our offer, send file
+        connected -> got_accept[arrowhead=none];
+        got_accept -> connected;
+        got_accept[shape=box,color=purple,label="got:Accept\lsend_file()"];
+
+        // human tells us to stop, shut down
+        connected -> send_stop[arrowhead=none];
+        send_stop -> closing;
+        send_stop[shape=box,color=sienna,label="stop\lclose_mailbox()"];
+
+        // user creates an Offer
+        connected -> create_offer2[arrowhead=none];
+        create_offer2 -> connected;
+        create_offer2[shape=box,color=sienna,label="create:Offer\lsend_offer()"];
+
+        // our human accepts an offer, download the file
+        connected -> accept_offer[arrowhead=none];
+        accept_offer -> connected;
+        accept_offer[shape=box,color=sienna,label="accept Offer\lreceive_file()"];
+
+        // mailbox confirms close
+        closing -> await_close[arrowhead=none];
+        await_close -> done;
+        await_close[shape=box,color=purple,label="mailbox_closed\lnotify:finished"];
+
+        done [style=bold,fontcolor=blue];
+
+}
