@@ -4,11 +4,13 @@ This version 2 protocol is a complete replacement for the original (referred to 
 
 Both sides must support and use Dilation (see `dilation-protocol.md`).
 
+Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
+
 
 ## Overview and Features
 
 We describe a flexible, "session"-based approach to file transfer allowing either side to offer files to send (while the other side may accept or reject each offer).
-Either side may terminate the transfer session.
+Either side MAY terminate the transfer session.
 
 File are sent individually, with no dependency on zip or other archive formats.
 
@@ -20,15 +22,26 @@ Metadata is included in the offers to allow the receiver to decide if they want 
 See the Dilation document for details on the Dilation setup procedure.
 Once a Dilation-supporting connection is open, we will have a "control" subchannel (subchannel #0).
 
-All offers are sent over the control channel.
-All answers (accept or reject) are also sent over the control channel.
-All control-channel messages are encoded using `msgpack`.
+All offers MUST be sent over the control channel.
+All answers (accept or reject) MUST also sent over the control channel.
+All control-channel messages MUST be encoded using `msgpack`.
    --> XXX: see "message encoding" discussion
 
 Control-channel message formats are described using Python3 pseudo-code to illustrate the exact data types involved.
 
 All control-channel messages contain an integer "kind" field describing the type of message.
 
+Both sides MUST immediately send a Version message on the control channel (XXX see "(sub)versioning of this protocol" dicussion).
+Version messages look like this:
+
+```python
+class Version:
+    kind: int = 0    # "version"
+    version: int = 1 # the only existing (sub)version of "file transfer v2"
+```
+
+Either side MAY send any number of Offer messages at any time.
+They MUST first open a subchannel to receive the subchannel ID.
 Offer messages look like this:
 
 ```python
@@ -41,11 +54,12 @@ class Offer:
     subchannel: int  # the subchannel which the file will be sent on
 ```
 
+The `id` in an Offer MUST NOT match any other Offer from this side.
 The subchannel in an Offer MUST NOT match any subchannel in any existing Offer from this side nor from the other side.
-This is enforced by the Dilation implementation: the Leader allocates only odd channels (starting with 1) and the Follower allocates only even channels (starting with 2).
+This latter constraint is enforced by the Dilation implementation: the Leader allocates only odd channels (starting with 1) and the Follower allocates only even channels (starting with 2).
 That is, the side producing the Offer first opens a subchannel and then puts the resulting ID into the Offer message.
 
-There are two kinds of repies to an offer, either an Accept message or a Reject message.
+There are two kinds of repies to an offer: either an Accept message or a Reject message.
 Reject messages look like this:
 
 ```python
@@ -63,16 +77,16 @@ class OfferAccept:
     id: int          # matching identifier for an existing offer from the other side
 ```
 
-When the offering side gets an `OfferReject` message, the subchannel is immediately closed.
-The offering side may show the "reason" string to the user.
-This offer ID should never be re-used during this session.
+When the offering side gets an `OfferReject` message, the subchannel SHOULD be immediately closed.
+The offering side MAY show the "reason" string to the user.
+Any send Offer ID MUST NOT be re-used during this session.
 
 When the offering side gets an `OfferAccept` message it begins streaming the file over the already-opened subchannel.
 When completed, the subchannel is closed.
 
 That is, the offering side always initiates the open and close of the corresponding subchannel.
 
-See examples down below.
+See examples down below, after "Discussion".
 
 
 ## Discussion and Open Questions
