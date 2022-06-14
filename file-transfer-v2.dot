@@ -1,5 +1,7 @@
 digraph {
         label="File Transfer v2 state-machine";
+        labelfontsize=40;
+        labelfontname="Source Code Pro";
         pack=true;
         rankdir="TB";
         ranksep="1.0 equally";
@@ -13,7 +15,7 @@ edge [labelfloat=true,labelfontsize=16,];
         // the Dilation connection becomes available
         start -> got_connect[arrowhead=none];
         got_connect -> await_version;
-        got_connect[shape=box,color=sienna,label="connected\lsend_version"]
+        got_connect[shape=box,color=sienna,label="connected\lsend_version()"]
 
         // user creates an Offer
         start -> create_offer0[arrowhead=none];
@@ -67,4 +69,34 @@ edge [labelfloat=true,labelfontsize=16,];
 
         done [style=bold,fontcolor=blue];
 
+
+        // bunch of error cases .. technically there's probably a few
+        // more (like if we receive anything at all in "closing" or
+        // "closing_error")
+        //
+        // uncomment to .. clutter the diagram
+
+        /*
+
+        // get Offer before Version
+        await_version -> offer_err0[arrowhead=none,color=red];
+        offer_err0 -> closing_error[color=red];
+        offer_err0[shape=box,color=purple,label="got:Offer\lclose_mailbox()"]
+
+        // get Accept before Version
+        await_version -> offer_ans0[arrowhead=none,color=red];
+        offer_ans0 -> closing_error[color=red];
+        offer_ans0[shape=box,color=purple,label="got:Accept\lclose_mailbox()"]
+
+        // get Reject before Version
+        await_version -> offer_rej0[arrowhead=none,color=red];
+        offer_rej0 -> closing_error[color=red];
+        offer_rej0[shape=box,color=purple,label="got:Reject\lclose_mailbox()"]
+
+        // closing_error worked
+        closing_error -> err_close[arrowhead=none,color=red];
+        err_close -> done[color=red];
+        err_close[shape=box,color=purple,label="mailbox_closed\lnotify:finished_error"];
+
+        */
 }
