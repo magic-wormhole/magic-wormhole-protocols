@@ -6,15 +6,22 @@ Both sides must support and use Dilation (see `dilation-protocol.md`).
 
 Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
 
+NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline.
+
 
 ## Overview and Features
 
-We describe a flexible, "session"-based approach to file transfer allowing either side to offer files to send (while the other side may accept or reject each offer).
-Either side MAY terminate the transfer session.
+We describe a flexible, "session"-based approach to file transfer allowing either side to offer files to send while the other side may accept or reject each offer.
+Either side MAY terminate the transfer session (by closing the wormhole)
 
-File are sent individually, with no dependency on zip or other archive formats.
+File are offered and sent individually, with no dependency on zip or other archive formats.
 
 Metadata is included in the offers to allow the receiver to decide if they want that file before the transfer begins.
+
+Filenames are relative paths.
+When sending individual files, this will be simply the filename portion (with no leading paths).
+For a series of files in a directory (i.e. if a directory was selected to send) paths will be relative to that directory (starting with the directory itself).
+(XXX see "file naming" in discussion)
 
 
 ## Protocol Details
@@ -116,6 +123,54 @@ Preliminary conclusion: a simple Version message is sent first, with version=0.
 
 While `msgpack` is mentioned above, there are several other binary-supporting libraries worth considering.
 These are (in no particular order) at least: CBOR or flatbuffers or protocolbuffers or cap'n'proto
+
+* file naming
+
+Sending a single file like `/home/meejah/Documents/Letter.docx` gets a filename like `Letter.docx`
+Sending a whole directory like `/home/meejah/Documents/` would result in some number of offers like `Documents/Letter.docx` etc.
+
+The question is, does this make sense?
+Should there (instead) be at least two kinds of offer: single files, or "collections"?
+Maybe _all_ offers should be collections, and a "single file offer" is just the special case where the list of offers has a single entry.
+
+
+## File Naming Example
+
+Given a hypothetical directory tree:
+
+* /home/
+  * meejah/
+    * grumpy-cat.jpeg
+    * homework-draft2-final.docx
+    * project/
+      * local-network.dia
+      * traffic.pcap
+      * README
+      * src/
+        * hello.py
+
+As spec'd above, if the human selects `/home/meejah/project/src/hello.py` then it should be sent as `hello.py`.
+However if they select `/home/meejah/project/` then there should be 4 offers: project/local-network.dia`, `project/traffic.pcap`, `project/README`, `project/src/hello.py`.
+
+Another way to this could be to re-design Offer messages to look like this:
+
+```python
+class Offer:
+    kind: int = 1    # "offer"
+    id: int          # unique random identifier for this offer
+    path: str        # utf8-encoded unicode relative base path of all files
+    files: list      # contains FileOffer instances
+
+class FileOffer:
+    filename: str    # utf8-encoded unicode relative pathname
+    timestamp: int   # Unix timestamp (seconds since the epoch in GMT)
+    bytes: int       # total number of bytes in the file
+    subchannel: int  # the subchannel which the file will be sent on
+```
+
+This would keep collections of files together (e.g. a subdirectory).
+For a single file, `path` would be `"."`.
+Maybe: single `subchannel` for all files? (No need for framing / EOF; we have length)
 
 
 ## Example 1
