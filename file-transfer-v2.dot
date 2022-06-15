@@ -10,27 +10,17 @@ digraph {
 node[];
 edge [labelfloat=true,labelfontsize=16,];
 
-        start [style=bold,fontcolor=blue];
+        await_dilation [style=bold,fontcolor=blue];
 
-        // the Dilation connection becomes available
-        start -> got_connect[arrowhead=none];
-        got_connect -> await_version;
-        got_connect[shape=box,color=sienna,label="connected\lsend_version()"]
-
-        // user creates an Offer
-        start -> create_offer0[arrowhead=none];
-        create_offer0 -> start;
+        // user creates an Offer (before connection has completed)
+        await_dilation -> create_offer0[arrowhead=none];
+        create_offer0 -> await_dilation;
         create_offer0[shape=box,color=sienna,label="create:Offer\lqueue_offer()"];
 
-        // the other side sends us a Version message
-        await_version -> got_version[arrowhead=none];
-        got_version -> connected;
-        got_version[shape=box,color=purple,label="got:Version\lsend_queued_offers()"];
-
-        // user creates an Offer
-        await_version -> create_offer1[arrowhead=none];
-        create_offer1 -> await_version;
-        create_offer1[shape=box,color=sienna,label="create:Offer\lqueue_offer()"];
+        // the Dilation connection becomes available
+        await_dilation -> got_connect[arrowhead=none];
+        got_connect -> connected;
+        got_connect[shape=box,color=sienna,label="connected\lsend_queued_offers()"]
 
         // other side sends offer, we notify our human
         connected -> got_offer[arrowhead=none];
@@ -52,7 +42,7 @@ edge [labelfloat=true,labelfontsize=16,];
         send_stop -> closing;
         send_stop[shape=box,color=sienna,label="stop\lclose_mailbox()"];
 
-        // user creates an Offer
+        // user creates an Offer (while connected)
         connected -> create_offer2[arrowhead=none];
         create_offer2 -> connected;
         create_offer2[shape=box,color=sienna,label="create:Offer\lsend_offer()"];
