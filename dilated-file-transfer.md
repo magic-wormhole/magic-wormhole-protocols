@@ -43,7 +43,7 @@ This protocol will include a dict like:
         "version": 1,
         "mode": "{send|receive|connect}",
         "features": ["basic"],
-        "permission": ["ask", "yes"]
+        "permission": "{ask|yes}"
     }
 }
 ```
@@ -378,12 +378,12 @@ Alice wishes to transfer some number of files from `laptop` to `desktop`.
 Alice initiates a `wormhole receive --yes` on the `desktop` machine, indicating that it should receive multiple files and not ask permission (writing each one immediately).
 This program prints a code and waits for protocol setup.
 
-Aliec uses a GUI program on `laptop` that allows drag-and-drop sending of files.
+Alice uses a GUI program on `laptop` that allows drag-and-drop sending of files.
 In this program, she enters the code that `desktop` printed out.
 
 Once the Dilated connection is establed, Alice can drop any number of files into the GUI application and they will be immediately written on the `desktop` without interaction.
 
-In this protocol, the `desktop` peer sends version information:
+Speaking this protocol, the `desktop` (receive-only CLI) peer sends version information:
 
 ```json
 {
@@ -391,27 +391,28 @@ In this protocol, the `desktop` peer sends version information:
         "version": 1,
         "mode": "receive",
         "features": ["basic"],
-        "permission": ["yes"]
+        "permission": "yes"
     }
 }
 ```
 
-The `laptop` peer then knows to not pause on its subchannels to await permission.
-For each file that Alice drops, it:
+The `laptop` peer then knows to not pause on its subchannels to await permission (`"permission": "yes"`).
+For each file that Alice drops, the `laptop` peer:
 * opens a subchannel
-* sends the metadata (via a `FileOffer` / kind=`1` record)
+* sends a `FileOffer` / kind=`1` record
 * immediately starts sending data (via kind=`5` records)
-* closes the subchannel
+* closes the subchannel (when all data is sent)
 
-On the `desktop` peer, it patiently waits for subchannels to open.
+On the `desktop` peer, the program patiently waits for subchannels to open.
 When a subchannel opens, it:
-* it reads the first record and finds a `FileOffer`, opening a local file to stream to
+* reads the first record and finds a `FileOffer` and opens a local file for writing
 * reads subsequent data records, writing them to the open file
 * notices the subchannel close
 * double-checks that the corrent number of payload bytes were received
+   * XXX: return a checksum ack? (this might be more in line with Waterken principals so the sending side knows to delete state relating to this file ... but arguably with Dilation it "knows" that file made it?)
 * closes the file
 
-When the GUI application finished (e.g. Alice closes it) the mailbox is closed.
+When the GUI application finishes (e.g. Alice closes it) the mailbox is closed.
 The `desktop` peer notices this and exits.
 
 
@@ -428,7 +429,11 @@ A Dilated channel is established, and both GUIs indicate they are ready to recei
 
 As Alice drops files into her GUI, Bob's side waits for confirmation.
 Several files could be in this state.
-Whenever Bob clicks "accept" on a file, his client answers with an `OfferAccept` message and Alice's client starts sending the file.
+Whenever Bob clicks "accept" on a file, his client answers with an `OfferAccept` message and Alice's client starts sending data records (the content of the file).
 If Bob were to click "reject" then his client would answer with an `OfferReject` and Alice's client would close the subchannel.
+XXX what if Bob is bored and clicks "cancel" on a file?
 
-When they are done, the session is closed, the Dilation channel is stopped, the mailbox is closed and no more files may be transferred.
+Alice and Bob may exchange severl files at different times in either direction.
+As they wrap up the call, Bob close his GUI client which closes the mailbox (and Dilated connection).
+Alice's client sees the mailbox close.
+Alice's GUI tells her that Bob is done and finishes the session; she can no longer drop or add files.
