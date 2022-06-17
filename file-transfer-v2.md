@@ -237,9 +237,37 @@ A new peer speaking to an old peer will never see `thumbnail` in the Offers, bec
 
 Two new peers speaking will both send `"formats": [1, 2]` and so will both include (and know how to interpret) `"thumbnail"` attributes on `Offers`.
 
-Additinoally, a new peer that _doesn't want_ to see `"thumbnail"` data (e.g. it's a CLI client) can not include `2` in their `"formats"` list.
+Additionally, a new peer that _doesn't want_ to see `"thumbnail"` data (e.g. it's a CLI client) can not include `2` in their `"formats"` list.
 
 XXX: perhaps the formats should be strings, like `["original", "thumbnail"]` for this example??
+
+XXX: warner: exercise, take some "possibly useful extensions" as an exercise (as above). (expensive to generate thumbnail, so worthless if you're going to ignore it).
+
+another exercise: a behavior, e.g the "permissions thing" (have to send back an answer, send-side has to wait)
+
+another exercise: compression (on the stream) ... maybe you don't speak zlib ... _could_ do it with a fallback style (try with compression, try without compression)
+
+
+need exercise for "big change" which would need "transfer-v3" upgrade...
+
+
+
+"how fine-grained": zooko says you probably only want _one_ version identifier.
+
+"up to version 4"
+
+"between version 2 and 5"
+
+-> output is single scalar (e.g. "use version 4")
+
+-> leader/follower thing in Dilation (leader decides from the intersections)
+
+-> sending list/set of versions even if the output is a single value is because experimental versions can be introduced, but then invoked.
+
+ . tls example:  ...
+
+
+warner likes this: could release "transfer-v3" for "big changes" and use the "formats" / feature-flags thing above for "tiny changes"
 
 
 ## Example 1
