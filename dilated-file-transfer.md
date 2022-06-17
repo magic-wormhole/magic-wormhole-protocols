@@ -427,13 +427,13 @@ She tells Bob the code, and he enters it in his GUI.
 
 A Dilated channel is established, and both GUIs indicate they are ready to receive and/or send files.
 
-As Alice drops files into her GUI, Bob's side waits for confirmation.
+As Alice drops files into her GUI, Bob's side waits for confirmation from Bob.
 Several files could be in this state.
 Whenever Bob clicks "accept" on a file, his client answers with an `OfferAccept` message and Alice's client starts sending data records (the content of the file).
-If Bob were to click "reject" then his client would answer with an `OfferReject` and Alice's client would close the subchannel.
+Whenever Bob clicks "reject", his client answesr with an `OfferReject` and Alice's client closes the subchannel.
 XXX what if Bob is bored and clicks "cancel" on a file?
 
-Alice and Bob may exchange severl files at different times in either direction.
-As they wrap up the call, Bob close his GUI client which closes the mailbox (and Dilated connection).
+Alice and Bob may exchange several files at different times, with either Alice or Bob being the sender.
+As they wrap up the call, Bob closes his GUI client which closes the mailbox (and Dilated connection).
 Alice's client sees the mailbox close.
 Alice's GUI tells her that Bob is done and finishes the session; she can no longer drop or add files.
