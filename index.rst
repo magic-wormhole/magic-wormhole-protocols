@@ -19,6 +19,7 @@ Magic-Wormhole: Get Things From One Computer To Another, Safely
    server-protocol
    client-protocol
    file-transfer-protocol
+   uri-scheme
 
    attacks
    journal
