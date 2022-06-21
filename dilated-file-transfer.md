@@ -6,7 +6,7 @@ Both sides must support and use Dilation (see `dilation-protocol.md`).
 
 Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
 
-NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline.
+    NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline.
 
 
 ## Overview and Features
@@ -15,7 +15,7 @@ We describe a flexible, "session"-based approach to file transfer allowing eithe
 Either side MAY terminate the transfer session (by closing the wormhole)
 Either side MAY select a one-way version, similar to the classic protocol.
 
-File are offered and sent individually, with no dependency on zip or other archive formats.
+Files are offered and sent individually, with no dependency on zip or other archive formats.
 
 Metadata is included in the offers to allow the receiver to decide if they want that file before the transfer begins.
 
