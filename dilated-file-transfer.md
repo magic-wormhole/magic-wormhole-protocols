@@ -13,7 +13,7 @@ Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
 
 We describe a flexible, "session"-based approach to file transfer allowing either side to offer files to send while the other side may accept or reject each offer.
 Either side MAY terminate the transfer session (by closing the wormhole)
-Either side MAY select a one-way version, similar to the classic protocol.
+Either side MAY select a one-way mode, similar to the classic protocol.
 
 Files are offered and sent individually, with no dependency on zip or other archive formats.
 
@@ -22,11 +22,6 @@ Metadata is included in the offers to allow the receiver to decide if they want 
 "Offers" generally correspond to what a user might select; a single-file offer is possible but so is a directory.
 In both cases, they are treated as "an offer" although a directory may consist of dozens or more individual files.
 
-Filenames are relative paths.
-When sending individual files, this will be simply the filename portion (with no leading paths).
-For a series of files in a directory (i.e. if a directory was selected to send) paths will be relative to that directory (starting with the directory itself).
-(XXX see "file naming" in discussion)
-
 
 ## Version Negotiation
 
@@ -34,8 +29,8 @@ There is an existing file-transfer protocol which does not use Dilation (called 
 Clients supporting newer versions of file-transfer (i.e. the one in this document) SHOULD offer backwards compatibility.
 
 In the mailbox protocol, applications can indicate version information.
-The existing file-transfer protocol doesn't use this so the version information is empty (indicating "classic").
-This protocol will include a dict like:
+The existing file-transfer protocol doesn't use this feature so the version information is empty (indicating "classic").
+This new protocol will include a dict like:
 
 ```json
 {
@@ -48,32 +43,37 @@ This protocol will include a dict like:
 }
 ```
 
-The `version` key indicates the highest version of this Dilated File Transfer protocol that this peer understands.
+The `"version"` key indicates the highest version of this Dilated File Transfer protocol that the peer understands.
 There is currently only one version: `1`.
 
-The `mode` key indicates the desired mode of the peer.
+The `"mode"` key indicates the desired mode of the peer.
 It has one of three values:
 * `"send"`: the peer will only send files (similar to classic transfer protocol)
 * `"receive"`: the peer only receive files (the flip side of the above)
 * `"connect"`: the peer will send and receive zero or more files before closing the session
 
-Note that `send` and `receive` above will still use Dilation as all clients supporting this protocol must.
+Note that `"send"` and `"receive"` above will still use Dilation as all clients supporting this protocol must.
 If a peer sends no version information at all, it will be using the classic protocol (and is thus using Transit and not Dilation for the peer-to-peer connection).
 
-The `"features"` key is a list of message-formats / features understood by the peer.
+    XXX: maybe we don't strictly _need_ the mode at all? but it does keep things explicit .. which might be important for UX decisions on one or the other side?
+    XXX: that is:
+    XXX: a "receive-only" client can simply never send an offer
+    XXX: a "send-only" client simply (automatically) rejects any offer
+
+The `"features"` key points at a list of message-formats / features understood by the peer.
 This allows for existing messages to be extended, or for new message types to be added.
 Peers MUST _accept_ messages for any features they support.
-Peers MUST only send messages for features in the other side's list.
+Peers MUST only send messages / attributes for features in the other side's list.
 Only one format exists currently: `"core"`.
 
-   XXX:: maybe just lean on "version" for now? e.g. version `2` could introduce "features"
+   XXX:: maybe just lean on "version" for now? e.g. version `2` could introduce "features"?
 
 See "Example of Protocol Expansion" below for discussion about adding new attributes (including when we might increment the `"version"` instead of adding a new `"feature"`).
 
 The `"permission"` key specifies how to proceed with offers.
 Using mode `"ask"` tells the sender to pause after transmitting the first metadata message and await an answer from the peer before streaming further data.
 Using mode `"yes"` means the peer will accept all incoming transfers so the sender should not pause after the metadata (and instead immediately start sending data messages).
-This cuts down latency for "one-way" transfers (see "Discussion")
+Although a peer could implement "yes" mode by simply sending an accept message for each offer without user interaction, setting this mode cuts down latency for "one-way" transfers (see "Discussion")
 
 
 ## Protocol Details
