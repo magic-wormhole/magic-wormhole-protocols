@@ -42,7 +42,7 @@ This protocol will include a dict like:
     "transfer": {
         "version": 1,
         "mode": "{send|receive|connect}",
-        "features": ["basic"],
+        "features": ["core"],
         "permission": "{ask|yes}"
     }
 }
@@ -64,7 +64,7 @@ The `"features"` key is a list of message-formats / features understood by the p
 This allows for existing messages to be extended, or for new message types to be added.
 Peers MUST _accept_ messages for any features they support.
 Peers MUST only send messages for features in the other side's list.
-Only one format exists currently: `"basic"`.
+Only one format exists currently: `"core"`.
 
    XXX:: maybe just lean on "version" for now?
 
@@ -390,7 +390,7 @@ Speaking this protocol, the `desktop` (receive-only CLI) peer sends version info
     "transfer": {
         "version": 1,
         "mode": "receive",
-        "features": ["basic"],
+        "features": ["core"],
         "permission": "yes"
     }
 }
