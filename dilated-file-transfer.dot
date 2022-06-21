@@ -1,13 +1,10 @@
 digraph {
 
-    start[rank=1];
+    start[color=blue style=bold];
+    done[color=red style=bold];
     start -> connected [label="peer mode: connect \l"];
     start -> receiving [label="peer mode: send \l"];
     start -> sending [label="peer mode: receive \l"];
-
-    connected[rank=2];
-    receiving[rank=2];
-    sending[rank=2];
 
     connected -> offer_start [label="subchannel open \l"];
     connected -> send_offer [label="make:Offer\lopen subchannel"];
@@ -16,16 +13,16 @@ digraph {
     sending -> send_offer [label="make:Offer\lopen subchannel"];
 
     subgraph cluster_receive {
-    rank=same;
         label="incoming offer";
         color=lightseagreen;
         style=filled;
         node[color=white; style=filled;];
 
         offer_start[color=white style=filled label="subchannel open"];
-        offer_start -> got_offer [label="recv: Offer\lask: accept?"];
+        offer_start -> accepting [label="recv:Offer\lour-mode: yes"];
+        offer_start -> got_offer [label="recv: Offer\lask:accept?"];
         got_offer -> accepting [label="answer:yes\lsend: AcceptOffer"];
-        got_offer -> rejecting [label="answer:yes\lsend: RejectOffer"];
+        got_offer -> rejecting [label="answer:no\lsend: RejectOffer"];
 
         accepting -> accepting [label="recv: data \lwrite"];
 
@@ -36,7 +33,6 @@ digraph {
     }
 
     subgraph cluster_send {
-    rank=same;
         label="outgoing offer";
         color=lightblue;
         style=filled;
