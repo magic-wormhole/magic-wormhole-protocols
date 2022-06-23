@@ -16,7 +16,7 @@ The place to be flexible is in protocol specifications.
 
 Everyone reading this likely has a particular sort of user experience (UX) in mind; the protocol should _allow_ reasonable features but shouldn't _demand_ any particular UX.
 
-The protocol absolutely MUST be extensible in the future (we can't do everything right now).
+The protocol absolutely MUST be extensible in the future (we can't do everything right, right now).
 
 
 ## Overview and Features
