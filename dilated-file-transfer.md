@@ -9,6 +9,16 @@ Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
     NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline. See also "Discussion and Open Questions"
 
 
+## Philosophic Note
+
+The place to be opinionated is in client implementations.
+The place to be flexible is in protocol specifications.
+
+Everyone reading this likely has a particular sort of user experience (UX) in mind; the protocol should _allow_ reasonable features but shouldn't _demand_ any particular UX.
+
+The protocol absolutely MUST be extensible in the future (we can't do everything right now).
+
+
 ## Overview and Features
 
 This specification is an application-level Magic Wormhole protocol defining a flexible, "session"-based approach to file transfer.
@@ -265,7 +275,7 @@ preliminary conclusion: msgpack.
 
 * file naming
 
-Sending a single file like `/home/meejah/Documents/Letter.docx` gets a filename like `Letter.docx`
+Sending a single file like `/home/meejah/Documents/Letter.docx` gets a filename `Letter.docx`
 Sending a whole directory like `/home/meejah/Documents/` would result in a directory-offer with basedir `Documents` and some number of files (possibly with sub-paths).
 
 This does NOT offer a client the chance to select "this" and "that" from a Directory offer (however, see the "Protocol Expansion Execrises" section).
@@ -278,7 +288,8 @@ Preliminary conclusion: centering around "the thing a human would select" (i.e. 
 There is no "finished" message. Maybe there should be? (e.g. the receiving side sends back a hash of the file to confirm it received it properly?)
 
 Does "re-using" the `FileOffer` as a kind of "header" when streaming `DirectoryOffer` contents make sense?
-We need _something_ to indicate the next file etc
+We need _something_ to indicate the next file etc.
+Preliminary conclusion: it's fine and gives consistent metadata
 
 Do the limits on message size make sense? Should "65KiB" be much smaller, potentially?
 (Given that network conditions etc vary a lot, I think it makes sense for the _spec_ to be somewhat flexible here and "65k" doesn't seem very onerous for most modern devices / computers)
