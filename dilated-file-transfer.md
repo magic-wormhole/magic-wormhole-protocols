@@ -6,16 +6,18 @@ Both sides must support and use Dilation (see `dilation-protocol.md`).
 
 Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
 
-    NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline.
+    NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline. See also "Discussion and Open Questions"
 
 
 ## Overview and Features
 
-We describe a flexible, "session"-based approach to file transfer allowing either side to offer files to send while the other side may accept or reject each offer.
-Either side MAY terminate the transfer session (by closing the wormhole)
+This specification is an application-level Magic Wormhole protocol defining a flexible, "session"-based approach to file transfer.
+Dilation must be supported by both clients (see "dilation-protocol.md").
+Client implementations can allow either side to offer files/directories to send while the other side may accept or reject each offer.
+Either side MAY terminate the transfer session (by closing the wormhole).
 Either side MAY select a one-way mode, similar to the classic protocol.
 
-Files are offered and sent individually, with no dependency on zip or other archive formats.
+Files or directories are offered and sent individually, with no dependency on zip or other archive formats.
 
 Metadata is included in the offers to allow the receiver to decide if they want that file before the transfer begins.
 
@@ -29,7 +31,7 @@ There is an existing file-transfer protocol which does not use Dilation (called 
 Clients supporting newer versions of file-transfer (i.e. the one in this document) SHOULD offer backwards compatibility.
 
 In the mailbox protocol, applications can indicate version information.
-The existing file-transfer protocol doesn't use this feature so the version information is empty (indicating "classic").
+The classic file-transfer protocol doesn't use this feature so the version information is empty.
 This new protocol will include a dict like:
 
 ```json
@@ -46,6 +48,8 @@ This new protocol will include a dict like:
 The `"version"` key indicates the highest version of this Dilated File Transfer protocol that the peer understands.
 There is currently only one version: `1`.
 
+    XXX: Brian Warner also notes that a list-of-versions may be a good/better approach (even if the result "a single version"); see the Dilation version-negotiation.
+
 The `"mode"` key indicates the desired mode of the peer.
 It has one of three values:
 * `"send"`: the peer will only send files (similar to classic transfer protocol)
@@ -60,9 +64,15 @@ If a peer sends no version information at all, it will be using the classic prot
     XXX: a "receive-only" client can simply never send an offer
     XXX: a "send-only" client simply (automatically) rejects any offer
 
+    XXX: "being explicit" has the advantage that a "receive-only" peer that connects to another "receive-only" peer will discover that quickly, and can (properly) fail -- otherwise, they'll only notice when one side gets bored and quits
+
+    XXX: two "send-only" peers that connect will fail fairly quickly -- each side should disconnect with a protocol-error when their receive the first offer
+
+    XXX: a "connect" peer that contacts either a "receive-only" or "send-only" can benefit from "being explicit" by disabling parts of the UI (for example) that won't work (e.g. contacting a "send-only" peer means the user can't browse/drop files)
+
 The `"features"` key points at a list of message-formats / features understood by the peer.
 This allows for existing messages to be extended, or for new message types to be added.
-Peers MUST _accept_ messages for any features they support.
+Peers MUST _accept_ messages for any features they declare in `"features"`.
 Peers MUST only send messages / attributes for features in the other side's list.
 Only one format exists currently: `"core"`.
 
@@ -86,12 +96,14 @@ All control-channel messages are encoded using `msgpack`.
    --> XXX: see "message encoding" discussion
 
 Control-channel message formats are described using Python pseudo-code to illustrate the data types involved.
+They are actually an encoded `Map` with `String` keys (to use `msgpack` lingo) and values as per the pseudo-code.
 
-All control-channel messages contain an integer "kind" field describing the sort of message it is.
+All control-channel messages contain a integer "kind" field describing the sort of message it is.
+(That is, `"kind": 1` for example, not the single-byte tag used for subchannel messages)
 
 Rejected idea: Version message, because we already do version negotiation via mailbox features.
 
-Rejected idea: Offer/Answer messages via the control channel: we need to open a subchannel anyway; the subchannel-IDs are not intended to be part of the Dilation API.
+Rejected idea: Offer/Answer messages via the control channel: we need to open a subchannel anyway and the subchannel-IDs are not intended to be part of the Dilation public API.
 
 
 ### Control Channel Messages
@@ -114,20 +126,21 @@ If the other peer specified `"mode": "send"` then this peer MUST NOT make any Of
 To make an Offer the peer opens a subchannel.
 Recall from the Dilation specification that subchannels are _record_ pipes (not simple byte-streams).
 
-All records on the subchannel are bytes, where the first byte indicates the kind of message and the remaining bytes are a kind-dependant payload.
+All records on the subchannel begin with a single byte indicating the kind of message.
+Any additional bytes are a kind-dependant payload.
 
 The following kinds of messages exist (as indicated by the first byte):
 * 1: msgpack-encoded `FileOffer` message
 * 2: msgpack-encoded `DirectoryOffer` message
 * 3: msgpack-encoded `OfferAccept` message
 * 4: msgpack-encoded `OfferReject` message
-* 5: file data bytes
+* 5: raw file data bytes
 
 All other byte values are reserved for future use and MUST NOT be used.
 
     XXX: maybe spec [0, 128) as reserved, and [128, 255) for "experiments"?
 
-The first message sent on the new subchannel is one of two sorts of offer messages.
+The sender that opened the new subchannel MUST immediately send one of the two kinds of offer messages.
 
 To offer a single file (with message kind `1`):
 
@@ -151,8 +164,7 @@ class DirectoryOffer:
 The filenames in the `"files"` list are sequences of unicode path-names and are relative to the `"base"` from the `DirectoryOffer` (but NOT including that part).
 Note that a `FileOffer` message also preceeds each file in the Directory when the data is streamed.
 The files MUST be streamed in the same order they appear in the `files` list.
-The last segment of each entry in the filename list MUST match the `.filename` of the `FileOffer` message.
-
+The last segment of each entry in the filename list MUST match the `"filename"` of the `FileOffer` message.
 
 For example:
 
@@ -198,14 +210,24 @@ When completed, the subchannel is closed.
 
 That is, the offering side always initiates the open and close of the corresponding subchannel.
 
+For the example above, the sending side determins whether it should stream data (e.g. in mode "yes" it should start right away, otherwise wait for an `OfferAccept`).
+
+It will then send messages in this order:
+* a kind `1` `FileOffer(filename="README")`
+* a kind `5` data with 65 bytes of payload
+* a kind `1` `FileOffer(filename="hellow.py")`
+* a kind `5` data with 100 bytes of payload
+* close the subchannel
+
 Messages of kind `5` ("file data bytes") consist solely of file data.
-A single data message MUST NOT exceed 65536 (65KiB) inculding the single byte for "kind".
+A single data message MUST NOT exceed 65536 bytes (65KiB) inculding the single byte for "kind" (so 65535 maximum payload bytes).
 Applications are free to choose how to fragment the file data so long as no single message is bigger than 65536 bytes.
 A good default to choose in 2022 is 16KiB (2^14 - 1 payload bytes)
 
     XXX: what is a good default? Dilation doesn't give guidance either...
 
-When sending a `DirectoryOffer` each individual file is preceeded by a `FileOffer` message. However the rules about "maybe wait for reply" no longer exist; that is, all file data SHOULD be immediately sent.
+When sending a `DirectoryOffer` each individual file is preceeded by a `FileOffer` message.
+However the rules about "maybe wait for reply" no longer exist; that is, all file data MUST be immediately sent (the `FileOffer`s serve as a header).
 
 See examples down below, after "Discussion".
 
