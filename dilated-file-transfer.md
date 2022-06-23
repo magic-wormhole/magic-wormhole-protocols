@@ -6,7 +6,7 @@ Both sides must support and use Dilation (see `dilation-protocol.md`).
 
 Any all-caps words ("MAY", "MUST", etc) follow RFC2119 conventions.
 
-    NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline. See also "Discussion and Open Questions"
+    NOTE: there are several open questions / discussion points, some with corresponding "XXX" comments inline. See also [Discussion and Open Questions](#discussion)
 
 
 ## Philosophic Note
@@ -22,7 +22,7 @@ The protocol absolutely MUST be extensible in the future (we can't do everything
 ## Overview and Features
 
 This specification is an application-level Magic Wormhole protocol defining a flexible, "session"-based approach to file transfer.
-Dilation must be supported by both clients (see "dilation-protocol.md").
+Dilation must be supported by both clients (see :ref:`dilation-protocol.md`).
 Client implementations can allow either side to offer files/directories to send while the other side may accept or reject each offer.
 Either side MAY terminate the transfer session (by closing the wormhole).
 Either side MAY select a one-way mode, similar to the classic protocol.
@@ -93,7 +93,7 @@ See "Example of Protocol Expansion" below for discussion about adding new attrib
 The `"permission"` key specifies how to proceed with offers.
 Using mode `"ask"` tells the sender to pause after transmitting the first metadata message and await an answer from the peer before streaming further data.
 Using mode `"yes"` means the peer will accept all incoming transfers so the sender should not pause after the metadata (and instead immediately start sending data messages).
-Although a peer could implement "yes" mode by simply sending an accept message for each offer without user interaction, setting this mode cuts down latency for "one-way" transfers (see "Discussion")
+Although a peer could implement "yes" mode by simply sending an accept message for each offer without user interaction, setting this mode cuts down latency for "one-way" transfers (see [Discussion](#discussion))
 
 
 ## Protocol Details
@@ -242,7 +242,7 @@ However the rules about "maybe wait for reply" no longer exist; that is, all fil
 See examples down below, after "Discussion".
 
 
-## Discussion and Open Questions
+## Discussion and Open Questions {#discussion}
 
 * Overall versioning considerations
 
