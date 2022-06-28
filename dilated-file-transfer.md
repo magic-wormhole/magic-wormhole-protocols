@@ -16,7 +16,7 @@ The place to be flexible is in protocol specifications.
 
 Everyone reading this likely has a particular sort of user experience (UX) in mind; the protocol should _allow_ reasonable features but shouldn't _demand_ any particular UX.
 
-The protocol absolutely MUST be extensible in the future (we can't do everything right, right now).
+The protocol absolutely MUST be extensible in the future (we can't do everything correctly immediately).
 
 
 ## Overview and Features
@@ -137,7 +137,7 @@ To make an Offer the peer opens a subchannel.
 Recall from the Dilation specification that subchannels are _record_ pipes (not simple byte-streams).
 
 All records on the subchannel begin with a single byte indicating the kind of message.
-Any additional bytes are a kind-dependant payload.
+Any additional bytes are a kind-dependent payload.
 
 The following kinds of messages exist (as indicated by the first byte):
 * 1: msgpack-encoded `FileOffer` message
@@ -172,7 +172,7 @@ class DirectoryOffer:
 ```
 
 The filenames in the `"files"` list are sequences of unicode path-names and are relative to the `"base"` from the `DirectoryOffer` (but NOT including that part).
-Note that a `FileOffer` message also preceeds each file in the Directory when the data is streamed.
+Note that a `FileOffer` message also precedes each file in the Directory when the data is streamed.
 The files MUST be streamed in the same order they appear in the `files` list.
 The last segment of each entry in the filename list MUST match the `"filename"` of the `FileOffer` message.
 
@@ -220,23 +220,23 @@ When completed, the subchannel is closed.
 
 That is, the offering side always initiates the open and close of the corresponding subchannel.
 
-For the example above, the sending side determins whether it should stream data (e.g. in mode "yes" it should start right away, otherwise wait for an `OfferAccept`).
+For the example above, the sending side determines whether it should stream data (e.g. in mode "yes" it should start right away, otherwise wait for an `OfferAccept`).
 
 It will then send messages in this order:
 * a kind `1` `FileOffer(filename="README")`
 * a kind `5` data with 65 bytes of payload
-* a kind `1` `FileOffer(filename="hellow.py")`
+* a kind `1` `FileOffer(filename="hello.py")`
 * a kind `5` data with 100 bytes of payload
 * close the subchannel
 
 Messages of kind `5` ("file data bytes") consist solely of file data.
-A single data message MUST NOT exceed 65536 bytes (65KiB) inculding the single byte for "kind" (so 65535 maximum payload bytes).
+A single data message MUST NOT exceed 65536 bytes (65KiB) including the single byte for "kind" (so 65535 maximum payload bytes).
 Applications are free to choose how to fragment the file data so long as no single message is bigger than 65536 bytes.
 A good default to choose in 2022 is 16KiB (2^14 - 1 payload bytes)
 
     XXX: what is a good default? Dilation doesn't give guidance either...
 
-When sending a `DirectoryOffer` each individual file is preceeded by a `FileOffer` message.
+When sending a `DirectoryOffer` each individual file is preceded by a `FileOffer` message.
 However the rules about "maybe wait for reply" no longer exist; that is, all file data MUST be immediately sent (the `FileOffer`s serve as a header).
 
 See examples down below, after "Discussion".
@@ -258,7 +258,7 @@ A file-transfer peer supporting Dilation and this new protocol sends `"transfer"
 We include a `"version"` key in that dict so that this transfer protocol may be extended in the future (see "Protocol Expansion Exercises" below).
 
 Additionally, a `"features"` key is included in that information.
-Although releated, this is somewhat orthogonal to "versions".
+Although related, this is somewhat orthogonal to "versions".
 That is, a peer may _know how to parse_ some (newer) version of this protocol but may still wish to _not_ support (or use) a particular feature.
 
 
@@ -268,7 +268,7 @@ While `msgpack` is mentioned above, there are several other binary-supporting li
 These are (in no particular order) at least: CBOR or flatbuffers or protocolbuffers or cap'n'proto
 
 We could also still decide to simply use JSON, as that is also unambiguous.
-Although it enjoys widespread support, JSON suffers from a lack of 64-bit integers (because JavaScript only supports 2^53 integers) and doesn't support a byte-string type (forcing e.g. any binary data to be encded in base64 or similar).
+Although it enjoys widespread support, JSON suffers from a lack of 64-bit integers (because JavaScript only supports 2^53 integers) and doesn't support a byte-string type (forcing e.g. any binary data to be encoded in base64 or similar).
 
 preliminary conclusion: msgpack.
 
@@ -278,7 +278,7 @@ preliminary conclusion: msgpack.
 Sending a single file like `/home/meejah/Documents/Letter.docx` gets a filename `Letter.docx`
 Sending a whole directory like `/home/meejah/Documents/` would result in a directory-offer with basedir `Documents` and some number of files (possibly with sub-paths).
 
-This does NOT offer a client the chance to select "this" and "that" from a Directory offer (however, see the "Protocol Expansion Execrises" section).
+This does NOT offer a client the chance to select "this" and "that" from a Directory offer (however, see the "Protocol Expansion Exercises" section).
 
 Preliminary conclusion: centering around "the thing a human would select" (i.e. "a file" or "a directory") makes the most sense.
 
@@ -365,7 +365,7 @@ class FileOffer:
     bytes: int
     thumbnail: bytes  # introduced in "thumbnail" feature; PNG data
 ```
-A new peer speaking to an old peer will never see `thumbnail` in the Offers, because the old peer sent `"formats": ["core"]` so the new peer knows not to inclue that attribute (and the old peer won't ever send it).
+A new peer speaking to an old peer will never see `thumbnail` in the Offers, because the old peer sent `"formats": ["core"]` so the new peer knows not to include that attribute (and the old peer won't ever send it).
 
 Two new peers speaking will both send `"formats": ["core", "thumbnails"]` and so will both include (and know how to interpret) `"thumbnail"` attributes on `Offers`.
 
@@ -423,7 +423,7 @@ This program prints a code and waits for protocol setup.
 Alice uses a GUI program on `laptop` that allows drag-and-drop sending of files.
 In this program, she enters the code that `desktop` printed out.
 
-Once the Dilated connection is establed, Alice can drop any number of files into the GUI application and they will be immediately written on the `desktop` without interaction.
+Once the Dilated connection is established, Alice can drop any number of files into the GUI application and they will be immediately written on the `desktop` without interaction.
 
 Speaking this protocol, the `desktop` (receive-only CLI) peer sends version information:
 
@@ -452,7 +452,7 @@ When a subchannel opens, it:
 * finds a `FileOffer` and opens a local file for writing
 * reads subsequent data records, writing them to the open file
 * notices the subchannel close
-* double-checks that the corrent number of payload bytes were received
+* double-checks that the correct number of payload bytes were received
    * XXX: return a checksum ack? (this might be more in line with Waterken principals so the sending side knows to delete state relating to this file ... but arguably with Dilation it "knows" that file made it?)
 * closes the file
 
