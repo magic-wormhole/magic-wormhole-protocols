@@ -193,9 +193,9 @@ This indicates an offer to send a directory consisting of two files: one in `"pr
 
 What happens next depends on the mode of the peer.
 
-If the peer has `"mode": "yes"` then this peer MUST immediately start sending content messages (see below).
+If the other peer has `"mode": "yes"` then this peer MUST immediately start sending content messages (see below).
 
-If the peer has `"mode": "ask"` then this peer MUST NOT send any more messages and instead await an incoming message.
+If the other peer has `"mode": "ask"` then this peer MUST NOT send any more messages and instead await an incoming message.
 
 That incoming message MUST be one of two reply messages: `OfferAccept` or `OfferReject`.
 These are indicated by the kind byte of that message being `3` or `4` (see list above).
