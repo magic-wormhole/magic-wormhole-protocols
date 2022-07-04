@@ -375,13 +375,13 @@ Additionally, a new peer that _doesn't want_ to see `"thumbnail"` data (e.g. it'
 
 An earlier draft of this included a `"permission"` key in the version information.
 
-Using `"permission": "yes"` tells other peer to not bother awaiting an answer to any Offers because it will accept them all (while `"permission": "ask"`, or simply nothing, selects the default behavior).
+Using `"permission": "yes"` tells the other peer to not bother awaiting an answer to any Offers because it will accept them all (while `"permission": "ask"`, or simply nothing, selects the default behavior).
 
 While this _could_ be implemented by clients simply replying automatically with an OfferAccept message to all offers, having a way to select this mode allows for lower-latency (by skipping round-trips).
 
 This alters the behavior of both sides: the offering peer must now sometimes wait for an OfferAccept message, and sometimes simply proceed and the receiving peer either sends an OfferAccept/OfferReject or merely waits for data.
 
-Since there is a change to the sent `"version"` information, this needs a new protocol version.
+Since there is a change to the sent `"transfer-v1"` versioning information, this needs a new protocol version.
 This change also affects behavior of both peers, so it seems like that could also be a reason to upgrade the protocol version.
 
 So, `"transfer-v2"` would be introduced, with a new `"permsision": {"ask"|"yes"}` configuration allowed.
