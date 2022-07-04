@@ -99,11 +99,6 @@ Peers MUST expect any strings in this list in the future (e.g. if a new feature 
 
 See "Example of Protocol Expansion" below for discussion about adding new attributes (including when we might increment the `"version"` instead of adding a new `"feature"`).
 
-The `"permission"` key specifies how to proceed with offers.
-Using mode `"ask"` tells the sender to pause after transmitting the first metadata message and await an answer from the peer before streaming further data.
-Using mode `"yes"` means the peer will accept all incoming transfers so the sender should not pause after the metadata (and instead immediately start sending data messages).
-Although a peer could implement "yes" mode by simply sending an accept message for each offer without user interaction, setting this mode cuts down latency for "one-way" transfers (see [Discussion](#discussion))
-
 
 ## Protocol Details
 
@@ -201,12 +196,7 @@ DirectoryOffer(
 
 This indicates an offer to send a directory consisting of two files: one in `"project/README"` and the other in `"project/src/hello.py"`.
 
-What happens next depends on the mode of the peer.
-
-If the other peer has `"mode": "yes"` then this peer MUST immediately start sending content messages (see below).
-
-If the other peer has `"mode": "ask"` then this peer MUST NOT send any more messages and instead await an incoming message.
-
+The peer making the Offer then awaits a message from the other peer.
 That incoming message MUST be one of two reply messages: `OfferAccept` or `OfferReject`.
 These are indicated by the kind byte of that message being `3` or `4` (see list above).
 
@@ -226,13 +216,11 @@ When the offering side gets an `OfferReject` message, the subchannel SHOULD be i
 The offering side MAY show the "reason" string to the user.
 
 When the offering side gets an `OfferAccept` message it begins streaming the file over the already-opened subchannel.
-When completed, the subchannel is closed.
+When completed, the subchannel is closed (by the peer that made the Offer).
 
 That is, the offering side always initiates the open and close of the corresponding subchannel.
 
-For the example above, the sending side determines whether it should stream data (e.g. in mode "yes" it should start right away, otherwise wait for an `OfferAccept`).
-
-It will then send messages in this order:
+If the receiving side responds with `OfferAccept` then (following the example above) this peer will send messages in this order:
 * a kind `1` `FileOffer(filename="README")`
 * a kind `5` data with 65 bytes of payload
 * a kind `1` `FileOffer(filename="hello.py")`
@@ -375,11 +363,29 @@ class FileOffer:
     bytes: int
     thumbnail: bytes  # introduced in "thumbnail" feature; PNG data
 ```
-A new peer speaking to an old peer will never see `thumbnail` in the Offers, because the old peer sent `"formats": ["core"]` so the new peer knows not to include that attribute (and the old peer won't ever send it).
+A new peer speaking to an old peer will never see `thumbnail` in the Offers, because the old peer sent `"formats": []` so the new peer knows not to include that attribute (and the old peer won't ever send it).
 
-Two new peers speaking will both send `"formats": ["core", "thumbnails"]` and so will both include (and know how to interpret) `"thumbnail"` attributes on `Offers`.
+Two new peers speaking will both send `"formats": ["thumbnails"]` and so will both include (and know how to interpret) `"thumbnail"` attributes on `Offers`.
 
 Additionally, a new peer that _doesn't want_ to see `"thumbnail"` data (e.g. it's a CLI client) can simply not include `"thumbnail"` in their `"formats"` list even if their protocol implementation knows about it.
+
+
+### No-Permission Mode
+
+An earlier draft of this included a `"permission"` key in the version information.
+
+Using `"permission": "yes"` tells other peer to not bother awaiting an answer to any Offers because it will accept them all (while `"permission": "ask"`, or simply nothing, selects the default behavior).
+
+While this _could_ be implemented by clients simply replying automatically with an OfferAccept message to all offers, having a way to select this mode allows for lower-latency (by skipping round-trips).
+
+This alters the behavior of both sides: the offering peer must now sometimes wait for an OfferAccept message, and sometimes simply proceed and the receiving peer either sends an OfferAccept/OfferReject or merely waits for data.
+
+Since there is a change to the sent `"version"` information, this needs a new protocol version.
+This change also affects behavior of both peers, so it seems like that could also be a reason to upgrade the protocol version.
+
+So, `"transfer-v2"` would be introduced, with a new `"permsision": {"ask"|"yes"}` configuration allowed.
+All other keys, abilities and features of `"transfer-v1"` would be retained in `-v2`.
+A peer supporting this would then include both a `"transfer-v1"` and `"transver-v2"` key in their application versions message.
 
 
 ### Finer Grained Permissions
@@ -442,17 +448,15 @@ Speaking this protocol, the `desktop` (receive-only CLI) peer sends version info
     "transfer": {
         "version": 1,
         "mode": "receive",
-        "features": ["core"],
-        "permission": "yes"
+        "features": [],
     }
 }
 ```
 
-The `laptop` peer then knows to not pause on its subchannels to await permission (`"permission": "yes"`).
-This saves one round-trip per file.
 For each file that Alice drops, the `laptop` peer:
 * opens a subchannel
 * sends a `FileOffer` / kind=`1` record
+* waits for the peer's answer
 * immediately starts sending data (via kind=`5` records)
 * closes the subchannel (when all data is sent)
 
@@ -460,6 +464,7 @@ On the `desktop` peer, the program waits for subchannels to open.
 When a subchannel opens, it:
 * reads the first record
 * finds a `FileOffer` and opens a local file for writing
+* sends an `OfferAccept` message immediately
 * reads subsequent data records, writing them to the open file
 * notices the subchannel close
 * double-checks that the correct number of payload bytes were received
