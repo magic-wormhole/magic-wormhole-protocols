@@ -34,6 +34,8 @@ Metadata is included in the offers to allow the receiver to decide if they want 
 "Offers" generally correspond to what a user might select; a single-file offer is possible but so is a directory.
 In both cases, they are treated as "an offer" although a directory may consist of dozens or more individual files.
 
+XXX include compression in this revision, or allow that to be a future enhancement?
+
 
 ## Version Negotiation
 
