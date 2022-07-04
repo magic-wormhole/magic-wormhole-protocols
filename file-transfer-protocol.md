@@ -119,51 +119,64 @@ Version 2 of the file transfer protocol got invented to add the following featur
 
 - Resumable transfers after a connection interruption
 - No need to build a temporary zip file; for both speed and space efficiency reasons. Also zip has a lot of other subtle limitations.
-<!-- - Allow for multiple transfer from both sides using a single connection -->
+- Allow for multiple transfer from both sides using a single connection
 
-The feature of sending text messages (without a transit connection), on the other hand, got removed (version 1 serves us well for that purpose).
-All transfers may contain multiple files: This covers both the "single file" use
+All individual transfers may contain multiple files: This covers both the "single file" use
 case as well as the "folder" use case.
+
+This protocol builds upon Dilation (TODO link), and therefore supporting Dilation
+is required for implementing Transfer v2.
 
 ### Application version
 
+TODO discuss on which encoding style for appversion is better. Independently of
+the encoding, the provided information will roughly stay the same.
+
+TODO incorporate the "mode" flag (send vs receive vs interactive)
+
 Setting the `transfer-v2` ability also requires providing a `transfer-v2` dictionary with the following values:
-`supported-formats` (see below) and `transit-abilities`, which is the same as `abilities-v1` in the version 1 specification. The transit abilities are exchanged earlier than in version 1 so that the `transit` message may
-only contain the hints for abilities both sides support, which avoids wasting effort.
+`supported-formats` (see below) <del>and `transit-abilities`, which is the same as `abilities-v1` in the version 1 specification. The transit abilities are exchanged earlier than in version 1 so that the `transit` message may
+only contain the hints for abilities both sides support, which avoids wasting effort.</del> transit abilities are
+now part of and managed by the Dilation abstraction.
 
 #### Supported formats
 
 Known formats are `plain` and `zst`. The former indicates uncompressed data and
 must be supported by all clients; all other formats are optional. TODO
-At the moment, the only supported format is `zst`. The details are up to the sender; a low compression level is recommended.
+The details about which format to use and with which settings are up to the sender; a low compression level is recommended.
 
 ### Overview
 
-Both sides immediately negotiate a transit connection. Once established, they start communicating over it and close
-the rendezvous connection. All messages over the relay connection are encoded using [msgpack](https://msgpack.org/) instead of JSON
+Both sides immediately "dilate" the Wormhole connection. They now have a number
+of communication channels suitable for bulk data transfer. The Wormhole mailbox
+is not explicitly used anymore, but kept open for Dilation to manage the connection.
+Subchannel #0 is used for control data, all other channels that are opened
+represent an individual transfer operation, independent from the others.
+
+All messages are encoded using [msgpack](https://msgpack.org/) instead of JSON
 to allow binary payloads. (All protocol examples in this document will use JSON for readability.)
 
+A transfer is started by the sender side opening a new sub-channel.
+
 - The sender starts by sending an offer. The receiver accepts it and receives the bytes.
-- The receiver rejects the offer by closing the connection with an error.
-- The connection is closed once all accepted files have been transferred (and checked).
+- The receiver rejects the offer by sending an error message and closing the sub-channel.
+- The sub-channel is closed once all accepted files have been transferred (and checked).
 
-### Transit hints
+### Control channel messages
 
-This is the first and (usually) also last message sent over the Wormhole connection.
-As the first message, it is the distinguisher for version 2 file transfer. As the last message, all following communication uses the transit connection, encoded using `msgpack`.
-Both sides then close their Wormhole connection as soon as transit is established.
-The message type is `transit-v2` and it is equivalent to the v1 `transit` message,
-except that it only contains the hints (the abilities have already been sent earlier).
+Text messages may be sent over the control channel at any time, in both directions.
 
-```json
+```
 {
-  "transit-v2": {
-    "hints-v1": [ … ]
-  }
+  "text-message": "Hello world"
 }
 ```
 
-### Send offer
+TODO here is where we want to communicate global error messages and cancellation.
+
+### Sub-channel messages
+
+#### Send offer
 
 A send offer has only one entry, but which may contain a recursive directory
 structure. If the top level entry is not a file, receiving clients may display
@@ -226,14 +239,14 @@ into consideration:
   ID generation as conservative as possible.
   - Simply using fresh random IDs for everything is an acceptable strategy.
 
-### Receive ack
+#### Receive ack
 
 `files` contains a mapping from transfer ID to offset (bytes).
 An offer may be rejected using an `error` message.
 
 ```json
 {
-  "answer-v2": {
+  "answer": {
     "files": {
       "<string>": "<integer>"
     },
@@ -241,14 +254,14 @@ An offer may be rejected using an `error` message.
 }
 ```
 
-### Payload transfer
+#### Payload transfer
 
 After receiving the ack, the sender transfers the payload according to the `format`. For each file, the data stream
-must start at the offset requested by the receiver. A `payload-v2` message contains only the (compressed) bytes as value.
+must start at the offset requested by the receiver. A `payload` message contains only the (compressed) bytes as value.
 
 ```json
 {
-  "payload-v2": {
+  "payload": {
     "id": "<string>",
     "payload": "<bytes>",
   }
@@ -260,7 +273,7 @@ decompression according to the format), and errors out if the sender exceeds the
 file system smear, sending a different amount of bytes than announced is rather common (hence
 the 5%). Errors will be caught using checksums later on.
 
-### Checksums
+#### Checksums
 
 At the end of the transfer, *both* sides send their checksums. That way, they do not need to communicate any further
 to exchange their opinion: they can both calculate themselves whether things went wrong or not and only need to notify
