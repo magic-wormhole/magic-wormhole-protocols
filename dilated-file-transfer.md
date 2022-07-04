@@ -50,7 +50,7 @@ This new protocol will include a dict like:
 {
     "transfer-v1": {
         "mode": "{send|receive|connect}",
-        "features": [],
+        "features": {},
     }
 }
 ```
@@ -88,7 +88,8 @@ If one peer indicates `"connect"` and the other indicates either `"send"` or `"r
 Note that `"send"` and `"receive"` modes will still use Dilation as all clients supporting this protocol must.
 If a peer sends no version information at all, it will be using the classic protocol (and is thus using Transit and not Dilation for the peer-to-peer connection).
 
-The `"features"` key points at a list of message-formats / features understood by the peer.
+The `"features"` key points at a dict mapping features to their configuration.
+Each feature may have an arbitrary mapping of feature-specific options.
 This allows for existing messages to be extended, or for new message types to be added.
 Peers MUST _accept_ messages for any features they declare in `"features"`.
 Peers MUST only send messages / attributes for features in the other side's list.
@@ -348,11 +349,11 @@ Let us suppose we decide to add `thumbnail: bytes` to the `Offer` messages.
 It is reasonable to imagine that some clients may not make use of this feature at all (e.g. CLI programs) and so work and bandwidth can be saved by not producing and sending them.
 
 This becomes a new `"feature"` in the protocol.
-That is, the version information is upgraded to allow `"features": ["thumbnails"]`.
+That is, the version information is upgraded to allow `"features": {"thumbnails": {}}`.
 
 Peers that do not understand (or do not _want_) thumbnails do not include that in their `"features"` list.
 So, according to the protocol, these peers should never receive anything related to thumbnails.
-Only if both peers include `"features": ["thumbnails"]` will they receive thumbnail-related information.
+Only if both peers include `"features": {"thumbnails": {}}` will they receive thumbnail-related information.
 
 The thumbnail feature itself could be implemented by expanding the `Offer` message:
 
@@ -363,11 +364,11 @@ class FileOffer:
     bytes: int
     thumbnail: bytes  # introduced in "thumbnail" feature; PNG data
 ```
-A new peer speaking to an old peer will never see `thumbnail` in the Offers, because the old peer sent `"formats": []` so the new peer knows not to include that attribute (and the old peer won't ever send it).
+A new peer speaking to an old peer will never see `thumbnail` in the Offers, because the old peer sent `"features": {}` so the new peer knows not to include that attribute (and the old peer won't ever send it).
 
-Two new peers speaking will both send `"formats": ["thumbnails"]` and so will both include (and know how to interpret) `"thumbnail"` attributes on `Offers`.
+Two new peers speaking will both send `"features": {"thumbnails": {}}` and so will both include (and know how to interpret) `"thumbnail"` attributes on `Offers`.
 
-Additionally, a new peer that _doesn't want_ to see `"thumbnail"` data (e.g. it's a CLI client) can simply not include `"thumbnail"` in their `"formats"` list even if their protocol implementation knows about it.
+Additionally, a new peer that _doesn't want_ to see `"thumbnail"` data (e.g. it's a CLI client) can simply not include `"thumbnail"` in their `"features"` list even if their protocol implementation knows about it.
 
 
 ### No-Permission Mode
