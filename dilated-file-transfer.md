@@ -246,7 +246,7 @@ A good default to choose in 2022 is 16KiB (2^14 - 1 payload bytes)
     XXX: what is a good default? Dilation doesn't give guidance either...
 
 When sending a `DirectoryOffer` each individual file is preceded by a `FileOffer` message.
-However the rules about "maybe wait for reply" no longer exist; that is, all file data MUST be immediately sent (the `FileOffer`s serve as a header).
+However the rules about "wait for reply" no longer exist; that is, all file data MUST be immediately sent (the `FileOffer`s serve as a header).
 
 See examples down below, after "Discussion".
 
@@ -328,7 +328,7 @@ Given a hypothetical directory tree:
         * hello.py
 
 As spec'd above, if the human selects `/home/meejah/project/src/hello.py` then it should be sent as `hello.py`.
-However if they select `/home/meejah/project/` then there should be a Directory Offer offers like:
+However if they select `/home/meejah/project/` then there should be a Directory Offer like:
 
 ```python
 DirectoryOffer(
