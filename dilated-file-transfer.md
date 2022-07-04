@@ -117,7 +117,7 @@ Control-channel message formats are described using Python pseudo-code to illust
 They are actually an encoded `Map` with `String` keys (to use `msgpack` lingo) and values as per the pseudo-code.
 
 All control-channel messages contain a integer "kind" field describing the sort of message it is.
-(That is, `"kind": 1` for example, not the single-byte tag used for subchannel messages)
+(That is, `"kind": "text"` for example, not the single-byte tag used for subchannel messages)
 
 Rejected idea: Version message, because we already do version negotiation via mailbox features.
 
@@ -132,7 +132,7 @@ These messages look like:
 ```python
 class Message:
     message: str     # unicode string
-    kind: int = 1    # "text message"
+    kind: str = "text"
 ```
 
 
