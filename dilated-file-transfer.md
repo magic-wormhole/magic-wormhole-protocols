@@ -81,19 +81,12 @@ It has one of three values:
 * `"receive"`: the peer only receive files (the flip side of the above)
 * `"connect"`: the peer will send and receive zero or more files before closing the session
 
-Note that `"send"` and `"receive"` above will still use Dilation as all clients supporting this protocol must.
+If both peers indicate `"receive"` then nothing will ever happen so they both SHOULD end the session and disconnect.
+If both peers indicate `"send"` then they SHOULD also end the session (although whichever sends the first Offer will induce a protocol error in the other peer).
+If one peer indicates `"connect"` and the other indicates either `"send"` or `"receive"` then the peers can still interoperate and the `"connect"` side MUST continue (although it MAY indicate the peer's lack of one capability e.g. by disabling part of its UI).
+
+Note that `"send"` and `"receive"` modes will still use Dilation as all clients supporting this protocol must.
 If a peer sends no version information at all, it will be using the classic protocol (and is thus using Transit and not Dilation for the peer-to-peer connection).
-
-    XXX: maybe we don't strictly _need_ the mode at all? but it does keep things explicit .. which might be important for UX decisions on one or the other side?
-    XXX: that is:
-    XXX: a "receive-only" client can simply never send an offer
-    XXX: a "send-only" client simply (automatically) rejects any offer
-
-    XXX: "being explicit" has the advantage that a "receive-only" peer that connects to another "receive-only" peer will discover that quickly, and can (properly) fail -- otherwise, they'll only notice when one side gets bored and quits
-
-    XXX: two "send-only" peers that connect will fail fairly quickly -- each side should disconnect with a protocol-error when their receive the first offer
-
-    XXX: a "connect" peer that contacts either a "receive-only" or "send-only" can benefit from "being explicit" by disabling parts of the UI (for example) that won't work (e.g. contacting a "send-only" peer means the user can't browse/drop files)
 
 The `"features"` key points at a list of message-formats / features understood by the peer.
 This allows for existing messages to be extended, or for new message types to be added.
