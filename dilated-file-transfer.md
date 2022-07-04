@@ -92,7 +92,8 @@ The `"features"` key points at a list of message-formats / features understood b
 This allows for existing messages to be extended, or for new message types to be added.
 Peers MUST _accept_ messages for any features they declare in `"features"`.
 Peers MUST only send messages / attributes for features in the other side's list.
-Only one format exists currently: `"core"`.
+Since there are only the core features currently, the only valid value is an empty list.
+Peers MUST expect any strings in this list in the future (e.g. if a new feature is added, the protocol version isn't necessarily bumped).
 
    XXX:: maybe just lean on "version" for now? e.g. version `2` could introduce "features"?
 
@@ -359,11 +360,11 @@ Let us suppose we decide to add `thumbnail: bytes` to the `Offer` messages.
 It is reasonable to imagine that some clients may not make use of this feature at all (e.g. CLI programs) and so work and bandwidth can be saved by not producing and sending them.
 
 This becomes a new `"feature"` in the protocol.
-That is, the version information is upgraded to allow `"features": ["core", "thumbnails"]`.
+That is, the version information is upgraded to allow `"features": ["thumbnails"]`.
 
 Peers that do not understand (or do not _want_) thumbnails do not include that in their `"features"` list.
 So, according to the protocol, these peers should never receive anything related to thumbnails.
-Only if both peers include `"features": ["core", "thumbnails"]` will they receive thumbnail-related information.
+Only if both peers include `"features": ["thumbnails"]` will they receive thumbnail-related information.
 
 The thumbnail feature itself could be implemented by expanding the `Offer` message:
 
