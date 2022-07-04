@@ -48,19 +48,32 @@ This new protocol will include a dict like:
 
 ```json
 {
-    "transfer": {
-        "version": 1,
+    "transfer-v1": {
         "mode": "{send|receive|connect}",
-        "features": ["core"],
-        "permission": "{ask|yes}"
+        "features": [],
     }
 }
 ```
 
-The `"version"` key indicates the highest version of this Dilated File Transfer protocol that the peer understands.
+The version of the protocol is the `"-v1"` tag in `"transfer-v1"`.
+A peer supporting newer versions may include `"transfer-v2"` or `"transfer-v3"` etc.
 There is currently only one version: `1`.
+Versions are considered as integers, so the version tag MUST always be the entire tail of the string, MUST start with `-v` and MUST end ONLY with digits (that are an integer version bigger than 0).
 
-    XXX: Brian Warner also notes that a list-of-versions may be a good/better approach (even if the result "a single version"); see the Dilation version-negotiation.
+When multiple versions are present, a peer decides which version to use by comparing the "list of versions" that they each support and selects the highest from the intersection of these.
+For example, if 3 versions existed, the two peers may present their version information like:
+
+```
+    peer A: "transfer-v1": {}, "transfer-v3": {}
+    peer B: "transfer-v1": {}, "transfer-v2": {}
+```
+
+Each peer makes a list of versions the other peer accepts: `A=[1, 3]` and `B=[1, 2]`.
+Taking the intersection of these yields the list `[1]` and the biggest number in that list is "1" so that is the version selected.
+When possible, peers SHOULD provide backwards compatibility.
+Note that you must declare each previous version supported (this allows support for any older version to be withdrawn by implementations).
+
+### `"transfer-v1"`:
 
 The `"mode"` key indicates the desired mode of the peer.
 It has one of three values:
