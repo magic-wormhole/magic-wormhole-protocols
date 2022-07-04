@@ -393,40 +393,25 @@ A peer supporting this would then include both a `"transfer-v1"` and `"transver-
 
 What if we decide we want to expand the "ask" behavior to sub-items in a DirectoryOffer.
 
-As this affects the behavior of both the sender (who now has to wait more often) and the receiver (who now has to send a new message) this means an overall protocol version bump.
+Although this affects the behavior of both the sender (who now has to wait more often) and the receiver (who now has to send a new message) we could simply use a `"features"` flag.
 
-    XXX: _does_ it though? I think we could use `"formats"` here too...
-
-So, this means that `"version": 2` would be the newest version.
-Any peer that sends a version lower than this (i.e. the existing `1`) will not send any fine-grained information (or "yes" messages).
-Any peer who sees the other side at a version lower than `2` thus cannot use this behavior and has to pretend to be a version `1` peer.
-
-If both peers send `2` then they can both use the new behavior (still using the overall `"yes"` versus `"ask"` switch that exists now, probably).
+Note that this probably interacts with the "no-permission mode" as well; a peer supporting that would want that behavior in DirectoryOffer situations as well.
 
 
 ### Compression
 
 Suppose that we decide to introduce compression.
 
-(XXX again, probably just leverage "features"?)
+Compression is introduced as a new feature-flag, `"features": {"compression-zstd": {"level": 3}}` specifying Zstandard compression.
 
+The compression-level is set to 3 by an option to this feature.
 
-### Big Change
+Every _offer_ uses a single compression context, streaming all bytes through it in sequence (even if the offer was a DirectoryOffer).
+That is, in the DirectoryOffer case, every file is streamed through one compression context.
+(Note that the compressor will need to `flush()` after each file to ensure all bytes are written before the next FileOffer header as sent).
 
-What is a sort of change that might actually _require_ us to use the `"version": 2` lever?
+Rejected idea: stream _all_ offers through one context .. but implementations may be doing one thread per subchannel or similar and contexts are not thread-safe.
 
-
-### How to Represent Overall Version
-
-It can be useful to send a "list of versions" you support even if the ultimate outcome of a "version negotiation" is a single scalar (of "maximum version").
-
-Something to do with being able to release (and then revoke) particular (possibly "experimental") versions.
-
-There may be an example in the TLS history surrounding this.
-
-This means we might want `"version": [1, 2]` for example instead of `"version": 1` or `"version": 2` alone.
-
-    XXX expand, find TLS example
 
 
 ## Example: one-way transfer
