@@ -88,6 +88,8 @@ If both peers indicate `"receive"` then nothing will ever happen so they both SH
 If both peers indicate `"send"` then they SHOULD also end the session (although whichever sends the first Offer will induce a protocol error in the other peer).
 If one peer indicates `"connect"` and the other indicates either `"send"` or `"receive"` then the peers can still interoperate and the `"connect"` side MUST continue (although it MAY indicate the peer's lack of one capability e.g. by disabling part of its UI).
 
+That is, existing applications expecting "one-way" transfers as with the classic protocol can use `"receive"` or `"send"` mode and later introduce the more-flexible `"connect"` mode that -- if both peers select it -- allows for multiple independant transfers in either direction.
+
 Note that `"send"` and `"receive"` modes will still use Dilation as all clients supporting this protocol must.
 If a peer sends no version information at all, it will be using the classic protocol (and is thus using Transit and not Dilation for the peer-to-peer connection).
 
