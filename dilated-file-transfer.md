@@ -211,6 +211,14 @@ DirectoryOffer(
 
 This indicates an offer to send a directory consisting of two files: one in `"project/README"` and the other in `"project/src/hello.py"`.
 
+When constructing a `DirectoryOffer`, the peer will be recursively searching all files in the directory or otherwise discovering the names and sizes of files to send.
+Peers MUST remember the stat information (at least size + modification-time) of each file in the offer.
+When sending file data peers MUST compare the current size + modification-time to that recorded when making the offer.
+Because the files actually sent MUST match the offer, any files that have appeared since the offer MUST be ignored.
+If any promised files have disappeared or their modification-time or size has changed, an error MUST be signalled and the transfer aborted.
+
+That is, peers MUST ensure that their offer matches the files sent.
+
 The peer making the Offer then awaits a message from the other peer.
 That incoming message MUST be one of two reply messages: `OfferAccept` or `OfferReject`.
 These are indicated by the kind byte of that message being `3` or `4` (see list above).
