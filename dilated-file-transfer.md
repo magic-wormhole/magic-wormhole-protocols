@@ -154,6 +154,7 @@ The following kinds of messages exist (as indicated by the first byte):
 * 3: msgpack-encoded `OfferAccept` message
 * 4: msgpack-encoded `OfferReject` message
 * 5: raw file data bytes
+* 6: msgpack-encoded `FileAcknowledge` message
 
 All other byte values are reserved for future use and MUST NOT be used.
 
@@ -169,6 +170,16 @@ class FileOffer:
     timestamp: int  # Unix timestamp (seconds since the epoch in GMT)
     bytes: int      # total number of bytes in the file
 ```
+
+At the end of the file data, _both_ sides MUST send a `FileAcknowledge` message:
+
+```python
+class FileAcknowledge:
+    bytes: int   # total number of bytes in the file
+    hash: bytes  # 32-byte Blake2b hash of the file
+```
+
+If the hash from the other peer does not match the one this peer sent, it is an error.
 
 To offer a directory tree of many files (with message kind `2`):
 
@@ -227,8 +238,10 @@ That is, the offering side always initiates the open and close of the correspond
 If the receiving side responds with `OfferAccept` then (following the example above) this peer will send messages in this order:
 * a kind `1` `FileOffer(filename="README")`
 * a kind `5` data with 65 bytes of payload
+* a kind `6` `FileAcknowledge` with size and hash
 * a kind `1` `FileOffer(filename="hello.py")`
 * a kind `5` data with 100 bytes of payload
+* a kind `6` `FileAcknowledge` with size and hash
 * close the subchannel
 
 Messages of kind `5` ("file data bytes") consist solely of file data.
@@ -238,7 +251,7 @@ A good default to choose in 2022 is 16KiB (2^14 - 1 payload bytes)
 
     XXX: what is a good default? Dilation doesn't give guidance either...
 
-When sending a `DirectoryOffer` each individual file is preceded by a `FileOffer` message.
+When sending a `DirectoryOffer` each individual file is preceded by a `FileOffer` message and ends with a `FileAcknowledge` message.
 However the rules about "wait for reply" no longer exist; that is, all file data MUST be immediately sent (the `FileOffer`s serve as a header).
 
 See examples down below, after "Discussion".
@@ -434,8 +447,7 @@ Speaking this protocol, the `desktop` (receive-only CLI) peer sends version info
 
 ```json
 {
-    "transfer": {
-        "version": 1,
+    "transfer-v2": {
         "mode": "receive",
         "features": [],
     }
@@ -447,6 +459,8 @@ For each file that Alice drops, the `laptop` peer:
 * sends a `FileOffer` / kind=`1` record
 * waits for the peer's answer
 * immediately starts sending data (via kind=`5` records)
+* sends a `FileAcknowledge` / kind=`6` record
+* waits for a `FileAcknowledge` from the peer
 * closes the subchannel (when all data is sent)
 
 On the `desktop` peer, the program waits for subchannels to open.
@@ -455,9 +469,10 @@ When a subchannel opens, it:
 * finds a `FileOffer` and opens a local file for writing
 * sends an `OfferAccept` message immediately
 * reads subsequent data records, writing them to the open file
+* reads a `FileAcknowledge` / kind=`6` record from the peer
+* sends a `FileAcknowledge` / kind=`6` record (note that it should generate its own hash)
+* double-checks that the correct number of payload bytes were received and that the hash sent matches the hash received
 * notices the subchannel close
-* double-checks that the correct number of payload bytes were received
-   * XXX: return a checksum ack? (this might be more in line with Waterken principals so the sending side knows to delete state relating to this file ... but arguably with Dilation it "knows" that file made it?)
 * closes the file
 
 When the GUI application finishes (e.g. Alice closes it) the mailbox is closed.
