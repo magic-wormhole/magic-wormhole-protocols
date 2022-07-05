@@ -48,32 +48,35 @@ This new protocol will include a dict like:
 
 ```json
 {
-    "transfer-v1": {
+    "transfer-v2": {
         "mode": "{send|receive|connect}",
         "features": {},
     }
 }
 ```
 
-The version of the protocol is the `"-v1"` tag in `"transfer-v1"`.
-A peer supporting newer versions may include `"transfer-v2"` or `"transfer-v3"` etc.
-There is currently only one version: `1`.
+The version of the protocol is the `"-v2"` tag in `"transfer-v2"`.
+A peer supporting newer versions may include `"transfer-v3"` or `"transfer-v4"` etc.
+There is currently only one version: `2`.
+In order to avoid confusion with "classic" transfer, this protocol skips "-v1" -- there is no version 1, we start at 2.
+
 Versions are considered as integers, so the version tag MUST always be the entire tail of the string, MUST start with `-v` and MUST end ONLY with digits (that are an integer version bigger than 0).
 
 When multiple versions are present, a peer decides which version to use by comparing the "list of versions" that they each support and selects the highest from the intersection of these.
 For example, if 3 versions existed, the two peers may present their version information like:
 
 ```
-    peer A: "transfer-v1": {}, "transfer-v3": {}
-    peer B: "transfer-v1": {}, "transfer-v2": {}
+    peer A: "transfer-v2": {}, "transfer-v4": {}
+    peer B: "transfer-v2": {}, "transfer-v3": {}
 ```
 
-Each peer makes a list of versions the other peer accepts: `A=[1, 3]` and `B=[1, 2]`.
-Taking the intersection of these yields the list `[1]` and the biggest number in that list is "1" so that is the version selected.
+Each peer makes a list of versions the other peer accepts: `A=[2, 4]` and `B=[2, 3]`.
+Taking the intersection of these yields the list `[2]` and the biggest number in that list is "2" so that is the version selected.
 When possible, peers SHOULD provide backwards compatibility.
 Note that you must declare each previous version supported (this allows support for any older version to be withdrawn by implementations).
 
-### `"transfer-v1"`:
+
+### `"transfer-v2"`:
 
 The `"mode"` key indicates the desired mode of the peer.
 It has one of three values:
@@ -381,12 +384,12 @@ While this _could_ be implemented by clients simply replying automatically with 
 
 This alters the behavior of both sides: the offering peer must now sometimes wait for an OfferAccept message, and sometimes simply proceed and the receiving peer either sends an OfferAccept/OfferReject or merely waits for data.
 
-Since there is a change to the sent `"transfer-v1"` versioning information, this needs a new protocol version.
+Since there is a change to the sent `"transfer-v2"` versioning information, this needs a new protocol version.
 This change also affects behavior of both peers, so it seems like that could also be a reason to upgrade the protocol version.
 
-So, `"transfer-v2"` would be introduced, with a new `"permsision": {"ask"|"yes"}` configuration allowed.
-All other keys, abilities and features of `"transfer-v1"` would be retained in `-v2`.
-A peer supporting this would then include both a `"transfer-v1"` and `"transver-v2"` key in their application versions message.
+So, `"transfer-v3"` would be introduced, with a new `"permsision": {"ask"|"yes"}` configuration allowed.
+All other keys, abilities and features of `"transfer-v2"` would be retained in `-v3`.
+A peer supporting this would then include both a `"transfer-v2"` and `"transver-v3"` key in their application versions message.
 
 
 ### Finer Grained Permissions
