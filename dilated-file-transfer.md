@@ -267,6 +267,20 @@ However the rules about "wait for reply" no longer exist; that is, all file data
 See examples down below, after "Discussion".
 
 
+### symbolic links
+
+Many filesystems support symbolic links ("symlinks").
+There is no way to "send a link" in this protocol.
+In the classic transfer protocol, sending a link would cause the contents of the target to be sent (using the symlink name).
+As the classic transfer used "zip" to bundle directory trees, it also bundled the contents of the target (as above).
+
+That said, it is up to implementations to decide how to deal with symlinks.
+When traversing directory trees, symlinks can point well outside of the user-selected directory and care may be required when following these.
+Loops may also occur.
+These problems _should_ be encountered when constructing the `DirectoryOffer`.
+The receiving side will not encounter these issues as it will receive either a file or a collection of files that are all strictly below some root directory.
+
+
 ## Discussion and Open Questions {#discussion}
 
 * Overall versioning considerations
