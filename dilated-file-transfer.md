@@ -257,9 +257,8 @@ If the receiving side responds with `OfferAccept` then (following the example ab
 Messages of kind `5` ("file data bytes") consist solely of file data.
 A single data message MUST NOT exceed 65536 bytes (65KiB) including the single byte for "kind" (so 65535 maximum payload bytes).
 Applications are free to choose how to fragment the file data so long as no single message is bigger than 65536 bytes.
-A good default to choose in 2022 is 16KiB (2^14 - 1 payload bytes)
-
-    XXX: what is a good default? Dilation doesn't give guidance either...
+A good default to choose in 2022 is 16KiB (2^14 - 1 payload bytes).
+Note the above considerations are to do with `kind=5` file-data messages only.
 
 When sending a `DirectoryOffer` each individual file is preceded by a `FileOffer` message and ends with a `FileAcknowledge` message.
 However the rules about "wait for reply" no longer exist; that is, all file data MUST be immediately sent (the `FileOffer`s serve as a header).
@@ -267,7 +266,7 @@ However the rules about "wait for reply" no longer exist; that is, all file data
 See examples down below, after "Discussion".
 
 
-### symbolic links
+### Symbolic Links
 
 Many filesystems support symbolic links ("symlinks").
 There is no way to "send a link" in this protocol.
@@ -278,7 +277,7 @@ That said, it is up to implementations to decide how to deal with symlinks.
 When traversing directory trees, symlinks can point well outside of the user-selected directory and care may be required when following these.
 Loops may also occur.
 These problems _should_ be encountered when constructing the `DirectoryOffer`.
-The receiving side will not encounter these issues as it will receive either a file or a collection of files that are all strictly below some root directory.
+The receiving side will not encounter these issues as it will receive either a file or a collection of files that are all strictly below the base directory.
 
 
 ## Discussion and Open Questions {#discussion}
@@ -329,9 +328,6 @@ There is no "finished" message. Maybe there should be? (e.g. the receiving side 
 Does "re-using" the `FileOffer` as a kind of "header" when streaming `DirectoryOffer` contents make sense?
 We need _something_ to indicate the next file etc.
 Preliminary conclusion: it's fine and gives consistent metadata
-
-Do the limits on message size make sense? Should "65KiB" be much smaller, potentially?
-(Given that network conditions etc vary a lot, I think it makes sense for the _spec_ to be somewhat flexible here and "65k" doesn't seem very onerous for most modern devices / computers)
 
 
 * compression
