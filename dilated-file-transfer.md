@@ -62,7 +62,7 @@ In order to avoid confusion with "classic" transfer, this protocol skips "-v1" -
 
 Versions are considered as integers, so the version tag MUST always be the entire tail of the string, MUST start with `-v` and MUST end ONLY with digits (that are an integer version bigger than 0).
 
-When multiple versions are present, a peer decides which version to use by comparing the "list of versions" that they each support and selects the highest from the intersection of these.
+When multiple versions are present, a peer decides which version to use by comparing the "list of versions" that they each support and selecting the highest from the intersection of these.
 For example, if 3 versions existed, the two peers may present their version information like:
 
 ```
