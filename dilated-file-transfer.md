@@ -144,9 +144,10 @@ class Message:
 
 ### Making an Offer
 
-Either side MAY propose any number of Offers at any time after the connection is set up.
-If the other peer specified `"mode": "send"` then this peer MUST NOT make any Offers.
-If this peer specified `"mode": "receive"` then this peer MUST NOT make any Offers.
+The ability to propose an Offer depends on the `"mode"` of each peer.
+A peer with `"mode": "send"` MAY propose any number of Offers at any time after the connection is established.
+A peer with `"mode": "receive"` MUST NOT propose any Offers.
+A peer with `"mode": "connect"` MAY propose any number of Offers at any time unless the other peer is `"mode": "send"` in which case this peer MUST NOT propose any Offers.
 
 To make an Offer the peer opens a subchannel.
 Recall from the Dilation specification that subchannels are _record_ pipes (not simple byte-streams).
