@@ -119,6 +119,12 @@ They are actually an encoded `Map` with `String` keys (to use `msgpack` lingo) a
 All control-channel messages contain a integer "kind" field describing the sort of message it is.
 (That is, `"kind": "text"` for example, not the single-byte tag used for subchannel messages)
 
+The logical "transfer session" lasts as long as the Dilation control-channel is open.
+When either peer is done it closes the control-channel and the mailbox.
+If one side sees the control-channel close this indicates the other peer is done; any outstanding transfers are cancelled.
+Peers SHOULD prefer to cancel individual offers before closing the control channel.
+The mailbox MUST only be closed after the control channel.
+
 Rejected idea: Version message, because we already do version negotiation via mailbox features.
 
 Rejected idea: Offer/Answer messages via the control channel: we need to open a subchannel anyway and the subchannel-IDs are not intended to be part of the Dilation public API.
