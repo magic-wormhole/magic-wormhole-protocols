@@ -167,7 +167,7 @@ All other byte values are reserved for future use and MUST NOT be used.
 
     XXX: maybe spec [0, 128) as reserved, and [128, 255) for "experiments"?
 
-The sender that opened the new subchannel MUST immediately send one of the two kinds of offer messages.
+The peer that opened the new subchannel MUST immediately send one of the two kinds of offer messages.
 
 To offer a single file (with message kind `1`):
 
@@ -186,7 +186,11 @@ class FileAcknowledge:
     hash: bytes  # 32-byte Blake2b hash of the file
 ```
 
+Although the receiving peer could determine the end-of-file itself based on the byte count it MUST wait for the `FileAcknowledge` from the sender before emitting its own `FileAcknowledge` message.
+
 If the hash from the other peer does not match the one this peer sent, it is an error.
+The user SHOULD be informed of the error.
+Peers SHOULD delete the transferred bytes upon error.
 
 To offer a directory tree of many files (with message kind `2`):
 
@@ -245,7 +249,7 @@ class OfferAccept:
 When the offering side gets an `OfferReject` message, the subchannel SHOULD be immediately closed.
 The offering side MAY show the "reason" string to the user.
 
-When the offering side gets an `OfferAccept` message it begins streaming the file over the already-opened subchannel.
+When the offering side gets an `OfferAccept` message it begins streaming the file data over the already-opened subchannel.
 When completed, the subchannel is closed (by the peer that made the Offer).
 
 That is, the offering side always initiates the open and close of the corresponding subchannel.
@@ -273,7 +277,7 @@ See examples down below, after "Discussion".
 
 ### Symbolic Links
 
-Many filesystems support symbolic links ("symlinks").
+Many filesystems support symbolic links (aka "symlinks").
 There is no way to "send a link" in this protocol.
 In the classic transfer protocol, sending a link would cause the contents of the target to be sent (using the symlink name).
 As the classic transfer used "zip" to bundle directory trees, it also bundled the contents of the target (as above).
@@ -283,6 +287,7 @@ When traversing directory trees, symlinks can point well outside of the user-sel
 Loops may also occur.
 These problems _should_ be encountered when constructing the `DirectoryOffer`.
 The receiving side will not encounter these issues as it will receive either a file or a collection of files that are all strictly below the base directory.
+Implementations wanting to follow the classic transfer behavior should follow symlinks when descending directories and include the contents of file links (under the name of the link, not the original).
 
 
 ## Discussion and Open Questions {#discussion}
@@ -328,7 +333,7 @@ Preliminary conclusion: centering around "the thing a human would select" (i.e. 
 
 * streaming data
 
-There is no "finished" message. Maybe there should be? (e.g. the receiving side sends back a hash of the file to confirm it received it properly?)
+Added "finished" message with checksum.
 
 Does "re-using" the `FileOffer` as a kind of "header" when streaming `DirectoryOffer` contents make sense?
 We need _something_ to indicate the next file etc.
@@ -523,6 +528,6 @@ Whenever Bob clicks "reject", his client answers with an `OfferReject` and Alice
 XXX what if Bob gets bored and clicks "cancel" on a file?
 
 Alice and Bob may exchange several files at different times, with either Alice or Bob being the sender.
-As they wrap up the call, Bob closes his GUI client which closes the mailbox (and Dilated connection).
-Alice's client sees the mailbox close.
+As they wrap up the call, Bob closes his GUI client which closes the Dilation control channel and mailbox.
+Alice's client sees the Dilation control-channel close.
 Alice's GUI tells her that Bob is done and finishes the session; she can no longer drop or add files.
