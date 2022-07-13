@@ -101,8 +101,6 @@ Peers MUST only send messages / attributes for features in the other side's list
 Since there are only the core features currently, the only valid value is an empty list.
 Peers MUST expect any strings in this list in the future (e.g. if a new feature is added, the protocol version isn't necessarily bumped).
 
-   XXX:: maybe just lean on "version" for now? e.g. version `2` could introduce "features"?
-
 See "Example of Protocol Expansion" below for discussion about adding new attributes (including when we might increment the `"version"` instead of adding a new `"feature"`).
 
 
