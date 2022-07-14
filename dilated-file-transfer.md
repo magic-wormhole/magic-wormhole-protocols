@@ -116,7 +116,7 @@ All control-channel messages are encoded using `msgpack`.
 Control-channel message formats are described using Python pseudo-code to illustrate the data types involved.
 They are actually an encoded `Map` with `String` keys (to use `msgpack` lingo) and values as per the pseudo-code.
 
-All control-channel messages contain a integer "kind" field describing the sort of message it is.
+All control-channel messages contain a "kind" field which is a string describing the sort of message it is.
 (That is, `"kind": "text"` for example, not the single-byte tag used for subchannel messages)
 
 The logical "transfer session" lasts as long as the Dilation control-channel is open.
