@@ -178,6 +178,7 @@ class FileOffer:
     bytes: int      # total number of bytes in the file
 ```
 
+The `timestamp` SHOULD be the "modification time" (that is, `st_mtime` from stat) in seconds.
 At the end of the file data, _both_ sides MUST send a `FileAcknowledge` message:
 
 ```python
