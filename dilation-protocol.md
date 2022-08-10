@@ -24,21 +24,21 @@ version present in both side's lists is eligible for use.
 ## Leaders and Followers
 
 Each side of a Wormhole has a randomly-generated dilation `side` string (this
-is included in the `please-dilate` message, and is independent of the
+is included in the `please` message, and is independent of the
 Wormhole's mailbox "side"). When the wormhole is dilated, the side with the
 lexicographically-higher "side" value is named the "Leader", and the other
 side is named the "Follower". The general wormhole protocol treats both sides
 identically, but the distinction matters for the dilation protocol.
 
-Both sides send a `please-dilate` as soon as dilation is triggered. Each side
+Both sides send a `please` as soon as dilation is triggered. Each side
 discovers whether it is the Leader or the Follower when the peer's
-"please-dilate" arrives. The Leader has exclusive control over whether a
+"please" message arrives. The Leader has exclusive control over whether a
 given connection is considered established or not: if there are multiple
 potential connections to use, the Leader decides which one to use, and the
 Leader gets to decide when the connection is no longer viable (and triggers
 the establishment of a new one).
 
-The `please-dilate` includes a `use-version` key, computed as the "best"
+The `please` includes a `use-version` key, computed as the "best"
 version of the intersection of the two sides' abilities as reported in the
 `versions` message. Both sides will use whichever `use-version` was specified
 by the Leader (they learn which side is the Leader at the same moment they
@@ -202,7 +202,7 @@ derived key)
 
 Each side is in the "connecting" state (which encompasses both making
 connection attempts and having an established connection) starting with the
-receipt of a `please-dilate` message and a local `w.dilate()` call. The
+receipt of a `please` message and a local `w.dilate()` call. The
 Leader remains in that state until it abandons the connection and sends a
 `reconnect` message, at which point it remains in the "flushing" state until
 the Follower's `reconnecting` message is received. The Follower remains in
@@ -461,7 +461,7 @@ that object.
 Each time an L3 connection is established, the side will immediately send all
 L4 messages waiting in the outbound queue. A future protocol might reduce
 this duplication by including the highest received sequence number in the L1
-PLEASE-DILATE message, which would effectively retire queued messages before
+PLEASE message, which would effectively retire queued messages before
 initiating the L2 connection process. On any given L3 connection, all
 messages are sent in-order. The receipt of an ACK for seqnum `N` allows all
 messages with `seqnum <= N` to be retired.
