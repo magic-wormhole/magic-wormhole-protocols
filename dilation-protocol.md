@@ -38,14 +38,16 @@ potential connections to use, the Leader decides which one to use, and the
 Leader gets to decide when the connection is no longer viable (and triggers
 the establishment of a new one).
 
-The `please` includes a `use-version` key, computed as the "best"
-version of the intersection of the two sides' abilities as reported in the
-`versions` message. Both sides will use whichever `use-version` was specified
-by the Leader (they learn which side is the Leader at the same moment they
-learn the peer's `use-version` value). If the Follower cannot handle the
-`use-version` value, dilation fails (this shouldn't happen, as the Leader
-knew what the Follower was and was not capable of before sending that
-message).
+The version message payload has a key called `can-dilate` that has a
+list of versions supported by a particular version of the client (eg:
+["1", "2"]). After receiving the version message from the other
+client, each client computes a list of mutually compatible "shared"
+versions that are commonly supported by both the clients. At the
+moment, the version number is "1", so if both the clients support that
+version, we pick the dilation version as "1". If the clients cannot
+find a mutually compatible version, then dilation would fail.
+
+
 
 ## Connection Layers
 
