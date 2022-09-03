@@ -11,9 +11,9 @@ The `wormhole-transfer` URI Scheme is used to encode a wormhole code for file tr
 The general format looks like this, and assumes default values for all query fields:
 `wormhole-transfer:{code}`
 
-`{code}` is the [URL / percent encoded](https://en.wikipedia.org/wiki/Percent-encoding) wormhole code. While common codes may not require any encoding, it must be made sure that percent-encoding and decoding is applied to support all possibilities.
+`{code}` is the [URL / percent encoded](https://en.wikipedia.org/wiki/Percent-encoding) wormhole code. The [C0 control percent encode set](https://url.spec.whatwg.org/#c0-control-percent-encode-set) is used to be [compatible with URL parsers](https://url.spec.whatwg.org/#concept-opaque-host-parser). While common codes may not require any encoding, it must be made sure that percent-encoding and decoding is applied to support all possibilities.
 
-It can be extended by appending a [query string](https://en.wikipedia.org/wiki/Query_string).
+It can be extended by appending a [query string](https://en.wikipedia.org/wiki/Query_string). The query string is percent-encoded with the [query percent encode set](https://url.spec.whatwg.org/#query-percent-encode-set).
 
 ## Query fields
 Applications MUST parse all query fields specified below and fail if they contain unknown fields or unsupported parameter values. Query values are percent-encoded.
