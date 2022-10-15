@@ -251,12 +251,13 @@ multiple distinct hints instead (one per endpoint). Furthermore, a relay server
 may be given a human readable name for UI purposes. We recommend using a primary
 domain name for that purpose.
 
-Hints have a `type` field, of which the currently known values are `direct-tcp-v1`
-`tor-tcp-v1` and `websocket-v1`. The former two are encoded the same way as the
-respective direct connection hints, hence the name. Hints of unknown type must
-be ignored.
+Hints have a `type` field, of which the currently known values are
+`direct-tcp-v1` `tor-tcp-v1` and `websocket-v1`. The former two are
+encoded the same way as the respective direct connection hints, hence
+the name -- however `tor-tcp-v1` may have a `"hostname"` that is a
+`.onion` domain (see RFC 7686). Hints of unknown type must be ignored.
 
-A hint of type `websocket-1` has an `url` field instead, which points to the
+A hint of type `websocket-v1` has an `url` field instead, which points to the
 WebSocket. Both relay servers and clients should support `wss://` and `ws://`
 URL schemes. If a relay server supports both, they should be advertised using
 two hints.
@@ -271,12 +272,13 @@ Full example value:
     {
       "type": "direct-tcp-v1",
       "hostname": "relay.example.org",
-      "port": "1234",
+      "port": 1234,
       "priority": 0.5
     },
     {
-      "type": "websocket-1",
-      "url": "wss://relay.example.org:8000"
+      "type": "websocket-v1",
+      "url": "wss://relay.example.org:8000",
+      "priority": 1
     }
   ],
 }
