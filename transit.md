@@ -320,10 +320,7 @@ If desired\*, transit provides an encrypted **record-pipe**, which means the two
 sides can and receive whole records, rather than unframed bytes. This is a side-effect of the
 encryption (which uses the NaCl "secretbox" function). The encryption adds 44
 bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
-so you might want to avoid bite-sized records for efficiency reasons. Tranport
-protocols that already include message framing (i.e. WebSockets) omit the four
-byte length prefix of each message. It is up to the relay to add or remove them
-where appropriate.
+so you might want to avoid bite-sized records for efficiency reasons.
 
 The maximum theoretical
 record size is 2^32 bytes (4GiB). The whole record must be held in memory at
