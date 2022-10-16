@@ -52,8 +52,8 @@ Some WebSockets libraries already provide abstractions to treat incoming message
 Stated differently: a single WebSocket message may contain only part of a logical Transit protocol message or it may contain several logical protocol messages; buffering these will be necessary.
 This allows the same protocol parsing to be used for TCP and for WebSockets: simply process all payload bytes in order.
 
-Handling WebSockets in this manner (i.e. instead of ensuring WebSocket message correspond to individual Transit protocol messages) also allows the Transit relay to be extremely simply, not having to "translate" message framing between the TCP and WebSockets protocols.
-This allows straightforward interoperation between TCP and WebSockets clients with minimal buffering on in the Transit server.
+Handling WebSockets in this manner (i.e. instead of ensuring WebSocket messages correspond to individual Transit protocol messages) also allows the Transit relay to be extremely simply, not having to "translate" message framing between the TCP and WebSockets protocols.
+This allows straightforward interoperation between TCP and WebSockets clients with minimal buffering in the Transit server.
 
 More transports may be added in the future.
 
