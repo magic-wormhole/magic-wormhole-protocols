@@ -5,8 +5,8 @@ The Wormhole API does not currently provide for large-volume data transfer
 Wormhole"). For now, bulk data is sent through a "Transit" object, which does
 not use the Rendezvous Server. Instead, it tries to establish a direct TCP
 connection from sender to recipient (or vice versa). If that fails, both
-sides connect to a "Transit Relay", a very simple Server that just glues two
-TCP sockets together when asked.
+sides connect to a "Transit Relay", a very simple server that just glues two
+TCP (or WebSocket) streams together when asked.
 
 The Transit protocol is responsible for establishing an encrypted
 bidirectional record stream between two programs. It must be given a "transit
@@ -27,6 +27,36 @@ The current implementation starts with the following:
 The other side will attempt to connect to each of those ports, as well as
 listening on its own socket. After a few seconds without success, they will
 both connect to a relay server.
+
+## Transports
+
+The Transit relay supports two kinds of transports: plain TCP streams and WebSockets.
+
+No matter which transport is selected, the same stream of binary data is sent over it.
+That is: first the relay handshake, then the transit handshake and then some number of length-prefixed encrypted records.
+
+More transports may be added in the future.
+
+### TCP Transport
+
+TCP already provides a stream-oriented protocol, so its handling is straightforward with no extra processing.
+The framing is described in sections below (line-ending based during the handshakes and length-prefixed encrypted records after that).
+
+### WebSockets Transport
+
+The WebSockets protocol is message-based.
+Messages arrive in-order and can be any size up to 4GiB (we recommend using much smaller sizes than this).
+Although the WebSockets protocol handles framing of these messages, when using WebSockets via the Transit relay clients must still regard the payload data as a stream of bytes as outlined above.
+That is, the framing (line-based and then length-prefixed) is still sent inside the WebSockets messages.
+
+All sent and received messages MUST use the WebSockets "binary" scheme.
+Some WebSockets libraries already provide abstractions to treat incoming messages as a stream.
+Stated differently: a single WebSocket message may contain only part of a logical Transit protocol message or it may contain several logical protocol messages; buffering these will be necessary.
+This allows the same protocol parsing to be used for TCP and for WebSockets: simply process all payload bytes in order.
+
+Handling WebSockets in this manner (i.e. instead of ensuring WebSocket messages correspond to individual Transit protocol messages) also allows the Transit relay to be extremely simply, not having to "translate" message framing between the TCP and WebSockets protocols.
+This allows straightforward interoperation between TCP and WebSockets clients with minimal buffering in the Transit server.
+
 
 ## Roles
 
@@ -251,12 +281,13 @@ multiple distinct hints instead (one per endpoint). Furthermore, a relay server
 may be given a human readable name for UI purposes. We recommend using a primary
 domain name for that purpose.
 
-Hints have a `type` field, of which the currently known values are `direct-tcp-v1`
-`tor-tcp-v1` and `websocket-v1`. The former two are encoded the same way as the
-respective direct connection hints, hence the name. Hints of unknown type must
-be ignored.
+Hints have a `type` field, of which the currently known values are
+`direct-tcp-v1` `tor-tcp-v1` and `websocket-v1`. The former two are
+encoded the same way as the respective direct connection hints, hence
+the name -- however `tor-tcp-v1` may have a `"hostname"` that is a
+`.onion` domain (see RFC 7686). Hints of unknown type must be ignored.
 
-A hint of type `websocket-1` has an `url` field instead, which points to the
+A hint of type `websocket-v1` has an `url` field instead, which points to the
 WebSocket. Both relay servers and clients should support `wss://` and `ws://`
 URL schemes. If a relay server supports both, they should be advertised using
 two hints.
@@ -271,12 +302,13 @@ Full example value:
     {
       "type": "direct-tcp-v1",
       "hostname": "relay.example.org",
-      "port": "1234",
+      "port": 1234,
       "priority": 0.5
     },
     {
-      "type": "websocket-1",
-      "url": "wss://relay.example.org:8000"
+      "type": "websocket-v1",
+      "url": "wss://relay.example.org:8000",
+      "priority": 1
     }
   ],
 }
@@ -288,10 +320,7 @@ If desired\*, transit provides an encrypted **record-pipe**, which means the two
 sides can and receive whole records, rather than unframed bytes. This is a side-effect of the
 encryption (which uses the NaCl "secretbox" function). The encryption adds 44
 bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
-so you might want to avoid bite-sized records for efficiency reasons. Tranport
-protocols that already include message framing (i.e. WebSockets) omit the four
-byte length prefix of each message. It is up to the relay to add or remove them
-where appropriate.
+so you might want to avoid bite-sized records for efficiency reasons.
 
 The maximum theoretical
 record size is 2^32 bytes (4GiB). The whole record must be held in memory at
