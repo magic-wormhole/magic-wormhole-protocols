@@ -35,12 +35,14 @@ The Transit relay supports two kinds of transports: plain TCP streams and WebSoc
 No matter which transport is selected, the same stream of binary data is sent over it.
 That is: first the relay handshake, then the transit handshake and then some number of length-prefixed encrypted records.
 
-### TCP
+More transports may be added in the future.
+
+### TCP Transport
 
 TCP already provides a stream-oriented protocol, so its handling is straightforward with no extra processing.
 The framing is described in sections below (line-ending based during the handshakes and length-prefixed encrypted records after that).
 
-### WebSockets
+### WebSockets Transport
 
 The WebSockets protocol is message-based.
 Messages arrive in-order and can be any size up to 4GiB (we recommend using much smaller sizes than this).
@@ -54,8 +56,6 @@ This allows the same protocol parsing to be used for TCP and for WebSockets: sim
 
 Handling WebSockets in this manner (i.e. instead of ensuring WebSocket messages correspond to individual Transit protocol messages) also allows the Transit relay to be extremely simply, not having to "translate" message framing between the TCP and WebSockets protocols.
 This allows straightforward interoperation between TCP and WebSockets clients with minimal buffering in the Transit server.
-
-More transports may be added in the future.
 
 
 ## Roles
