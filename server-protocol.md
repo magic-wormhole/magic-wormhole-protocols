@@ -72,19 +72,40 @@ messages. Clients must ignore unrecognized message types from the Server.
 
 The first thing the server sends to each client is the `welcome` message.
 This is intended to deliver important status information to the client that
-might influence its operation. The Python client currently reacts to the
-following keys (and ignores all others):
+might influence its operation. Clients should look out for the following fields,
+and handle them accordingly, if present:
 
-* `current_cli_version`: prompts the user to upgrade if the server's
+* `current_cli_version`: *(deprecated)* prompts the user to upgrade if the server's
   advertised version is greater than the client's version (as derived from
   the git tag)
-* `motd`: prints this message, if present; intended to inform users about
+* `motd`: This message is intended to inform users about
   performance problems, scheduled downtime, or to beg for donations to keep
-  the server running
-* `error`: causes the client to print the message and then terminate. If a
-  future version of the protocol requires a rate-limiting CAPTCHA ticket or
-  other authorization record, the server can send `error` (explaining the
-  requirement) if it does not see this ticket arrive before the `bind`.
+  the server running. Clients should print it or otherwise display prominently
+  to the user. The value *should* be a plain string.
+* `error`: The client should show this message to the user and then terminate.
+  The value *should* be a plain string.
+* `relays`: An advertizement list of relay servers. It is a JSON list of which each
+  entry may look like this:
+    ```json
+    {
+      "url": "tcp://myrelay.example.org:12345/",
+      "country": "IT",
+      "continent": "EU",
+    }
+    ```
+  * The only mandatory key is `url`, all others are optional information to help the client
+    choose an appropriate one.
+      * Clients must not expect the protocol to be `tcp` (expect websockets support in the future).
+      * A `tcp`-schemed URL only has the `scheme` and `authority` part (`path` is empty, no `query`
+      and `fragment`), and the `authority` part only has `host` and `port` (no `userinfo`). There is
+      no default port number. Thus, it looks like `tcp://host:port/`, nothing more.
+  * `country` and `continent` are two-letter capitalized country/continent codes following ISO 3166.
+  * Further keys may be added in the future.
+
+  Clients should make a preselection of viable relay servers (which may include entries from other
+  sources as well), and randomly select one or two (together with the other side's, this
+  makes up to four, which should be enough to have a high probability of at least one being
+  reachable).
 * `permission-required`: a set of available authentication methods,
   proof of work challenges etc. The client needs to "solve" one of
   them in order to get access to the service.
