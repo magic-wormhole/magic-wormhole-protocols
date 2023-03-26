@@ -205,14 +205,12 @@ nameplates for that whole time.
 
 The `allocate` command allocates a nameplate (the server returns one that is
 as short as possible), and the `allocated` response provides the answer.
-Clients can also send a `list` command to get back a `nameplates` response
-with all allocated nameplates for the bound AppID: this helps the code-input
-tab-completion feature know which prefixes to offer. The `nameplates`
-response returns a list of dictionaries, one per claimed nameplate, with at
-least an `id` key in each one (with the nameplate string). Future versions
-may record additional attributes in the nameplate records, specifically a
-wordlist identifier and a code length (again to help with code-completion on
-the receiver).
+
+There is a `list` command (with the answer message being `nameplates`) intended
+for the use-case of listing currently in-use nameplates for user input
+auto-completion purposes. However, this feature could trivially be used to
+disrupt the service, therefore servers may send an always-empty response to not
+disclose any information about in-use nameplates.
 
 ## Mailboxes
 
@@ -281,7 +279,7 @@ any), and which ones provoke direct responses:
 * (C->S) submit-permissions {..} (optional)
 * (C->S) bind {appid:, side:, }
 * (C->S) list {} -> nameplates
-* S->C nameplates {nameplates: [{id: str},..]}
+* S->C nameplates {nameplates: [{id: str},..]} (response might be empty)
 * (C->S) allocate {} -> allocated
 * S->C allocated {nameplate:}
 * (C->S) claim {nameplate:} -> claimed
