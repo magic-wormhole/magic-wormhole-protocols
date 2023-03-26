@@ -198,6 +198,10 @@ it (to avoid a race condition), but for simplicity, clients can send a claim for
 all nameplates, even ones which they've allocated themselves.
 Note that a claim (and therefore an allocation) also automatically opens the
 mailbox, see below.
+The `claim` command has the optional boolean field `allocate` (defaulting to
+`true`), which if set to `false` will result in an error if the to be claimed
+nameplate does not already exist. The intent behind this is clients who want
+to insure themselves against user mistakes when entering a nameplate.
 
 Nameplates (on the server) must live until the second client has learned
 about the associated mailbox, after which point they can be reused by other
@@ -291,7 +295,7 @@ any), and which ones provoke direct responses:
 * S->C nameplates {nameplates: [{id: str},..]} (response might be empty)
 * (C->S) allocate {} -> allocated
 * S->C allocated {nameplate:}
-* (C->S) claim {nameplate:} -> claimed
+* (C->S) claim {nameplate:, allocate:?bool} -> claimed
 * S->C claimed {mailbox:}
 * (C->S) release {nameplate:?} -> released
 * S->C released
