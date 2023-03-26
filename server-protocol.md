@@ -194,8 +194,10 @@ released it, or after some period of inactivity.
 
 Clients can either make up nameplates themselves, or (more commonly) ask the
 server to allocate one for them. Allocating a nameplate automatically claims
-it (to avoid a race condition), but for simplicity, clients send a claim for
+it (to avoid a race condition), but for simplicity, clients can send a claim for
 all nameplates, even ones which they've allocated themselves.
+Note that a claim (and therefore an allocation) also automatically opens the
+mailbox, see below.
 
 Nameplates (on the server) must live until the second client has learned
 about the associated mailbox, after which point they can be reused by other
@@ -232,6 +234,13 @@ are delivered immediately to the connected client. There is no explicit ack
 to the `open` command, but since all clients add a message to the mailbox as
 soon as they connect, there will always be a `message` response shortly after
 the `open` goes through. The `close` command provokes a `closed` response.
+Note that the `claim` and `allocate` commands implicitly already open the
+mailbox. The `open` command may be issued nevertheless for client implementation
+simplicity, and then simply be a no-op. There is also the possibility to open
+a mailbox directly without using a nameplate. This is mainly useful for
+reconnecting clients that had a mailbox previously, but may be used by future
+protocols too (see for example
+https://github.com/magic-wormhole/magic-wormhole-protocols/issues/2).
 
 The `close` command accepts an optional "mood" string: this allows clients to
 tell the server (in general terms) about their experiences with the wormhole
