@@ -289,7 +289,7 @@ any), and which ones provoke direct responses:
 * (C->S) open {mailbox:}
 * (C->S) add {phase: str, body: hex} -> message (to all connected clients)
 * S->C message {side:, phase:, body:, id:}
-* (C->S) close {mailbox:?, mood:?} -> closed
+* (C->S) close {mailbox:?, mood:?} -> closed (the mailbox is known and implicit to the current connection)
 * S->C closed
 * S->C ack
 * (C->S) ping {ping: int} -> ping
