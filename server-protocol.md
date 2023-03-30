@@ -230,7 +230,13 @@ coming from the other client.
 Each mailbox is "opened" by some number of clients at a time, until all
 clients have closed it. Mailboxes are kept alive by either an open client, or
 a Nameplate which points to the mailbox (so when a Nameplate is deleted from
-inactivity, the corresponding Mailbox will be too).
+inactivity, the corresponding Mailbox will be too). The mailbox server makes
+sure a mailbox can never be opened by more than two parties, neither
+simultaneously not cumulatively. Trying to open a mailbox as a third party
+results in a "crowded" error for that attempt. Moreover, when a client connects
+to a mailbox which the other client closed and thus has no chance of ever seeing
+a its peer, the server may reject its attempt to open the mailbox with an error
+message.
 
 The `open` command both marks the mailbox as being opened by the bound side,
 and also adds the WebSocket as subscribed to that mailbox, so new messages
