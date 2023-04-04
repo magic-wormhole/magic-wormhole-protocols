@@ -300,7 +300,7 @@ any), and which ones provoke direct responses:
 * (C->S) list {} -> nameplates
 * S->C nameplates {nameplates: [{id: str},..]} (response might be empty)
 * (C->S) allocate {} -> allocated
-* S->C allocated {nameplate:}
+* S->C allocated {nameplate:,mailbox:}
 * (C->S) claim {nameplate:, allocate:?bool} -> claimed
 * S->C claimed {mailbox:}
 * (C->S) release {nameplate:?} -> released
