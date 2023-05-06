@@ -28,7 +28,7 @@ For example:
 
 ```
 {
-    "can-dilate": [1]
+    "can-dilate": ["1"]
     "dilation-abilities": [
         {"type": "direct-tcp-v1"},
         {"type": "relay-v1"},
@@ -37,11 +37,11 @@ For example:
 ```
 
 When considering the `"can-dilate"` list, implementations take the intersection (of both peers) and SHOULD select the "best" version in that intersection.
-Usually "best" means "newest" (i.e. biggest number) but implementations MAY have other ways of deciding what is best.
+The *order* of versions in the list indicates their priority (they may not all be strings that convert to integers).
 The version selected is communicated in the `please` message with `"use-version"` key.
 Both sides MUST use the version selected by the Leader (see next section).
 
-Currently there is only one version: `1`.
+Currently there is only one version: `"1"`.
 
 
 ## Leaders and Followers
