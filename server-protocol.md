@@ -12,9 +12,16 @@ Mailboxes are identified by a large random string. "Nameplates", in contrast,
 have short numeric identities: in a wormhole code like "4-purple-sausages",
 the "4" is the nameplate.
 
-Each client has a randomly-generated "side", a short hex string, used to
-differentiate between echoes of a client's own message, and real messages
-from the other client.
+Each client has a "side", a short hex string coming from a CSPRNG (yes,
+despite the low entropy it should come from a true random generator). Its
+main purpose is to differentiate between echoes of a client's own message
+and real messages from the other client. It might also be used to give each
+session a unique identification, and to feed cryptographic challenges in
+other parts of the protocol (think of it as a salt). For this purpose, we
+also define a "session ID" as follows: We sort both sides lexicographically
+(comparing the first, second, etc. bytes) and concatenate the lower after the
+higher one.
+
 
 ## Application IDs
 
@@ -213,6 +220,14 @@ least an `id` key in each one (with the nameplate string). Future versions
 may record additional attributes in the nameplate records, specifically a
 wordlist identifier and a code length (again to help with code-completion on
 the receiver).
+
+### High entropy nameplates
+
+Nameplates in the range above 1000000 (one million) and alphanumeric nameplates
+are called "high entropy". They should not be used for the `allocate` command,
+and should instead always be claimed directly by clients. It is up to the clients
+to use sufficient entropy in order make accidental collisions rare. Furthermore,
+high entropy nameplates should not exempt from the `list` command.
 
 ## Mailboxes
 
