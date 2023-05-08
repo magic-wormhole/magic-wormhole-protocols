@@ -194,8 +194,14 @@ released it, or after some period of inactivity.
 
 Clients can either make up nameplates themselves, or (more commonly) ask the
 server to allocate one for them. Allocating a nameplate automatically claims
-it (to avoid a race condition), but for simplicity, clients send a claim for
+it (to avoid a race condition), but for simplicity, clients can send a claim for
 all nameplates, even ones which they've allocated themselves.
+Note that a claim (and therefore an allocation) also automatically opens the
+mailbox, see below.
+The `claim` command has the optional boolean field `allocate` (defaulting to
+`true`), which if set to `false` will result in an error if the to be claimed
+nameplate does not already exist. The intent behind this is clients who want
+to insure themselves against user mistakes when entering a nameplate.
 
 Nameplates (on the server) must live until the second client has learned
 about the associated mailbox, after which point they can be reused by other
@@ -205,14 +211,12 @@ nameplates for that whole time.
 
 The `allocate` command allocates a nameplate (the server returns one that is
 as short as possible), and the `allocated` response provides the answer.
-Clients can also send a `list` command to get back a `nameplates` response
-with all allocated nameplates for the bound AppID: this helps the code-input
-tab-completion feature know which prefixes to offer. The `nameplates`
-response returns a list of dictionaries, one per claimed nameplate, with at
-least an `id` key in each one (with the nameplate string). Future versions
-may record additional attributes in the nameplate records, specifically a
-wordlist identifier and a code length (again to help with code-completion on
-the receiver).
+
+There is a `list` command (with the answer message being `nameplates`) intended
+for the use-case of listing currently in-use nameplates for user input
+auto-completion purposes. However, this feature could trivially be used to
+disrupt the service, therefore servers may send an always-empty response to not
+disclose any information about in-use nameplates.
 
 ## Mailboxes
 
@@ -226,7 +230,13 @@ coming from the other client.
 Each mailbox is "opened" by some number of clients at a time, until all
 clients have closed it. Mailboxes are kept alive by either an open client, or
 a Nameplate which points to the mailbox (so when a Nameplate is deleted from
-inactivity, the corresponding Mailbox will be too).
+inactivity, the corresponding Mailbox will be too). The mailbox server makes
+sure a mailbox can never be opened by more than two parties, neither
+simultaneously not cumulatively. Trying to open a mailbox as a third party
+results in a "crowded" error for that attempt. Moreover, when a client connects
+to a mailbox which the other client closed and thus has no chance of ever seeing
+a its peer, the server may reject its attempt to open the mailbox with an error
+message.
 
 The `open` command both marks the mailbox as being opened by the bound side,
 and also adds the WebSocket as subscribed to that mailbox, so new messages
@@ -234,6 +244,13 @@ are delivered immediately to the connected client. There is no explicit ack
 to the `open` command, but since all clients add a message to the mailbox as
 soon as they connect, there will always be a `message` response shortly after
 the `open` goes through. The `close` command provokes a `closed` response.
+Note that the `claim` and `allocate` commands implicitly already open the
+mailbox. The `open` command may be issued nevertheless for client implementation
+simplicity, and then simply be a no-op. There is also the possibility to open
+a mailbox directly without using a nameplate. This is mainly useful for
+reconnecting clients that had a mailbox previously, but may be used by future
+protocols too (see for example
+https://github.com/magic-wormhole/magic-wormhole-protocols/issues/2).
 
 The `close` command accepts an optional "mood" string: this allows clients to
 tell the server (in general terms) about their experiences with the wormhole
@@ -281,17 +298,17 @@ any), and which ones provoke direct responses:
 * (C->S) submit-permissions {..} (optional)
 * (C->S) bind {appid:, side:, }
 * (C->S) list {} -> nameplates
-* S->C nameplates {nameplates: [{id: str},..]}
+* S->C nameplates {nameplates: [{id: str},..]} (response might be empty)
 * (C->S) allocate {} -> allocated
-* S->C allocated {nameplate:}
-* (C->S) claim {nameplate:} -> claimed
+* S->C allocated {nameplate:,mailbox:}
+* (C->S) claim {nameplate:, allocate:?bool} -> claimed
 * S->C claimed {mailbox:}
 * (C->S) release {nameplate:?} -> released
 * S->C released
 * (C->S) open {mailbox:}
 * (C->S) add {phase: str, body: hex} -> message (to all connected clients)
 * S->C message {side:, phase:, body:, id:}
-* (C->S) close {mailbox:?, mood:?} -> closed
+* (C->S) close {mailbox:?, mood:?} -> closed (the mailbox is known and implicit to the current connection)
 * S->C closed
 * S->C ack
 * (C->S) ping {ping: int} -> ping
