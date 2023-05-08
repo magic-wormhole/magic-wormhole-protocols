@@ -13,13 +13,36 @@ messages are used to open/use/close the application-visible subchannels.
 
 ## Capability discovery
 
-The Wormhole protocol includes a `versions` message sent immediately after
-the shared PAKE key is established. This also serves as a key-confirmation
-message, allowing each side to confirm that the other side knows the right
-key. The body of the `versions` message is a JSON-formatted string with keys
-that are available for learning the abilities of the peer. Dilation is
-signaled by a key named `can-dilate`, whose value is a list of strings. Any
-version present in both side's lists is eligible for use.
+The Wormhole protocol includes a `versions` message sent immediately after the shared PAKE key is established.
+This also serves as a key-confirmation message, allowing each side to confirm that the other side knows the right key.
+The body of the `versions` message is a JSON-formatted string with keys that are available for learning the abilities of the peer.
+Dilation is signaled by a key named `can-dilate`, whose value is a list of strings.
+Any version present in both side's lists is eligible for use.
+
+The connection abilities are communicated similarly to Transit, in a `dilation-abilities` key.
+Currently supported: `direct-tcp-v1`, `tor-tcp-v1` and `relay-v1`.
+These have similar meaning as in Transit (referring to the ability to make a direct connection, a connection via Tor and a connection via the Transit Relay respectively)
+See :ref:`transit.md` for more details.
+
+For example:
+
+```
+{
+    "can-dilate": ["1"]
+    "dilation-abilities": [
+        {"type": "direct-tcp-v1"},
+        {"type": "relay-v1"},
+    ]
+}
+```
+
+When considering the `"can-dilate"` list, implementations take the intersection (of both peers) and SHOULD select the "best" version in that intersection.
+The *order* of versions in the list indicates their priority (they may not all be strings that convert to integers).
+The version selected is communicated in the `please` message with `"use-version"` key.
+Both sides MUST use the version selected by the Leader (see next section).
+
+Currently there is only one version: `"1"`.
+
 
 ## Leaders and Followers
 
