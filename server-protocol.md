@@ -1,8 +1,8 @@
-# Rendezvous Server Protocol
+# Mailbox Server Protocol
 
 ## Concepts
 
-The Rendezvous Server provides queued delivery of binary messages from one
+The Mailbox server provides queued delivery of binary messages from one
 client to a second, and vice versa. Each message contains a "phase" (a
 string) and a body (bytestring). These messages are queued in a "Mailbox"
 until the other side connects and retrieves them, but are delivered
@@ -33,7 +33,7 @@ file-transfer tool uses `lothar.com/wormhole/text-or-file-xfer`.
 ## WebSocket Transport
 
 At the lowest level, each client establishes (and maintains) a WebSocket
-connection to the Rendezvous Server. If the connection is lost (which could
+connection to the Mailbox server. If the connection is lost (which could
 happen because the server was rebooted for maintenance, or because the
 client's network connection migrated from one network to another, or because
 the resident network gremlins decided to mess with you today), clients should
@@ -72,23 +72,23 @@ messages. Clients must ignore unrecognized message types from the Server.
 
 The first thing the server sends to each client is the `welcome` message.
 This is intended to deliver important status information to the client that
-might influence its operation. The Python client currently reacts to the
-following keys (and ignores all others):
+might influence its operation. Clients should look out for the following fields,
+and handle them accordingly, if present:
 
-* `current_cli_version`: prompts the user to upgrade if the server's
+* `current_cli_version`: *(deprecated)* prompts the user to upgrade if the server's
   advertised version is greater than the client's version (as derived from
   the git tag)
-* `motd`: prints this message, if present; intended to inform users about
+* `motd`: This message is intended to inform users about
   performance problems, scheduled downtime, or to beg for donations to keep
-  the server running
-* `error`: causes the client to print the message and then terminate. If a
-  future version of the protocol requires a rate-limiting CAPTCHA ticket or
-  other authorization record, the server can send `error` (explaining the
-  requirement) if it does not see this ticket arrive before the `bind`.
+  the server running. Clients should print it or otherwise display prominently
+  to the user. The value *should* be a plain string.
+* `error`: The client should show this message to the user and then terminate.
+  The value *should* be a plain string.
 * `permission-required`: a set of available authentication methods,
   proof of work challenges etc. The client needs to "solve" one of
   them in order to get access to the service.
 
+Other (unknown) fields should be ignored.
 The client should examine the `permissions-required` methods (if
 present) and select one to use (see also "Permission to Use the
 Server" below).
@@ -186,7 +186,7 @@ observers to use the hard-earned token for themselves.
 Wormhole codes look like `4-purple-sausages`, consisting of a number followed
 by some random words. This number is called a "Nameplate".
 
-On the Rendezvous Server, the Nameplate contains a pointer to a Mailbox.
+On the Mailbox server, the Nameplate contains a pointer to a Mailbox.
 Clients can "claim" a nameplate, and then later "release" it. Each claim is
 for a specific side (so one client claiming the same nameplate multiple times
 only counts as one claim). Nameplates are deleted once the last client has
@@ -239,7 +239,7 @@ The `close` command accepts an optional "mood" string: this allows clients to
 tell the server (in general terms) about their experiences with the wormhole
 interaction. The server records the mood in its "usage" record, so the server
 operator can get a sense of how many connections are succeeding and failing.
-The moods currently recognized by the Rendezvous Server are:
+The moods currently recognized by the Mailbox server are:
 
 * `happy` (default): the PAKE key-establishment worked, and the client saw at
   least one valid encrypted message from its peer
@@ -269,7 +269,7 @@ blob (for the VERSION message, as well as all application-provided payloads).
 The `message` response will also include `id`, copied from the `id` of the
 `add` message (and used only by the timing-diagram tool).
 
-The Rendezvous Server does not de-duplicate messages, nor does it retain
+The Mailbox server does not de-duplicate messages, nor does it retain
 ordering: clients must do both if they need to.
 
 ## All Message Types
