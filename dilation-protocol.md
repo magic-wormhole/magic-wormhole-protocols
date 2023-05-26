@@ -24,14 +24,6 @@ Compared to the Transit connection, it has additional features like resilience a
 
 ## Capability discovery
 
-As for Transit, this is up to the application layer protocol to handle, preferably
-using the `version` phase.
-
-TODO: This section described the version exchange within the `version` phase,
-however there is also some version information in one of the first Dilation
-messages itself. These are more or less redundant, but which one should we take?
- ~ piegames
-
 The Wormhole protocol has a `versions` message sent immediately after the shared PAKE key is established.
 This also serves as a key-confirmation message, allowing each side to confirm that the other side knows the right key.
 The body of the `versions` message is a JSON-formatted string with keys that are available for learning the abilities of the peer.
@@ -45,13 +37,14 @@ See the [Transit protocol](./Transit.md) for more details.
 
 For example:
 
-```
+```json
 {
-    "can-dilate": ["1"]
+    "can-dilate": ["1"],
     "dilation-abilities": [
         {"type": "direct-tcp-v1"},
         {"type": "relay-v1"},
-    ]
+    ],
+    // more potentially non-dilation fields
 }
 ```
 
@@ -82,7 +75,7 @@ The Mailbox on the rendezvous server is used to deliver dilation requests and co
 The current mailbox protocol uses named "phases" to distinguish messages
 (rather than behaving like a regular ordered channel of arbitrary frames or bytes),
 and all-number phase names are reserved for application data.
-Therefore the dilation control messages use phases named `DILATE-0`, `DILATE-`, etc.
+Therefore the dilation control messages use phases named `DILATE-0`, `DILATE-1`, etc.
 Like for the "regular" named phases, each side maintains its own counter,
 so one side might be up to e.g. `DILATE-5` while the other has only gotten as far as `DILATE-2`.
 Remember that all phases beyond the initial `pake` phase are encrypted by the shared session key.
@@ -104,11 +97,10 @@ the initialization will stall and never complete.
 Dilation is initiazed by sending a `please` (i.e. "please dilate") type message with a set of versions that can be accepted.
 Versions use strings, rather than integers, to support experimental protocols, however there is still a total ordering of preferability.
 
-```
+```json
 {
   "type": "please",
   "side": "abcdef",
-  // "accepted-versions": ["1"] TODO that field is not part of the Python implementation ~piegames
 }
 ```
 
@@ -116,20 +108,18 @@ If one side receives a `please` before having initiated dilation itself,
 the contents are stored in case it decides to do so in the future.
 Once both sides have sent and received a `please` message,
 the side determines whether it is the leader or the follower.
-~~Both sides also compare `accepted-versions` fields to choose the best mutually-compatible
-version to use: they should always pick the same one.~~
-TODO that field is not part of the Python implementation ~piegames
 
 ### Establishing a Dilation connection
 
 Then both sides begin the connection process by opening listening sockets and sending `connection-hint` messages for each one.
-After a slight delay they will also open connections to the Transit Relay of their choice and produce hints for it too.
+After a slight delay they will also open connections to the Transit Relay(s) of their choice and produce hints for it too.
 The receipt of inbound hints (on both sides) will trigger outbound connection attempts.
 The hints are encoded as described in the Transit protocol.
 (TODO specify the exact encoding, give examples ~piegames)
 
-Some of these connections may succeed, and the Leader decides which to use (via an in-band signal on the established connection).
-The others are dropped.
+Some of these connections may succeed, and the Leader decides which to use
+(via an in-band signal on the established connection, see "key confirmation message" below).
+Both sides then drop all other connection attempts and close them.
 
 If something goes wrong with the established connection and the Leader decides a new one is necessary,
 the Leader will send a `reconnect` message over the Wormhole.
@@ -155,7 +145,7 @@ which will send new `connection-hint` messages for all listening sockets.
 { "type": "reconnecting" }
 ```
 
-The Leader will drop all existing connections from before sending the `reconnect`,
+The Leader must drop all existing connections from before sending the `reconnect`,
 and will not initiate any new connections until it receives the matching `reconnecting` from the Follower.
 The Follower must drop all previous connections before it sends the `reconnecting` response.
 
@@ -168,8 +158,6 @@ start-dilation, but meanwhile the leader may accept it as gen2 ~warner)~~
 derived key ~warner — please please don't ~piegames)
 
 (TODO: reduce the number of round-trip stalls here, I've added too many ~warner)
-(yes, and one could also drastically reduce the number of messages by sending
-all hints at once with the reconnect message ~piegames)
 
 Hints can arrive at any time. One side might immediately send hints that can be computed quickly,
 then send additional hints later as they become available.
@@ -180,7 +168,7 @@ it can send additional hints for that new endpoint.
 If the other peer happens to be on the same LAN,
 the local connection can be established without waiting for the router's response.
 
-(I'd like to see that feature removed, this stuff is already complicated enough with a signle hints message ~piegames)
+(I'd like to see that feature removed, this stuff is already complicated enough with a single hints message ~piegames)
 
 ### Connection Hint Format
 
@@ -189,9 +177,6 @@ TODO delegate this to Transit
 ## Dilation connection
 
 TODO document the special relay handshake (it's the same as in Transit) ~piegames
-
-TODO How does this part of the protocol interact with web clients and WebSocket
-connections? ~piegames
 
 Upon established connection (or at least a viable candidate), both sides send their handshake message.
 The Leader sends "Magic-Wormhole Dilation Handshake v1 Leader\n\n".
@@ -217,7 +202,7 @@ and must be processed in a specific order
 (the Leader must not accept the Follower's message until it has generated its own).
 Noise allows handshake messages to include a payload, but we do not use this feature.
 
-All subsequent messages as known as "Noise transport messages", and are independent for each direction.
+All subsequent messages are known as "Noise transport messages", and are independent for each direction.
 Transport messages are encrypted by the shared key, in a form that evolves as more messages are sent.
 
 The Follower's first transport message is an empty packet, which we use as a "key confirmation message" (KCM).
@@ -254,9 +239,11 @@ should be adjusted if we see regular data arriving.~~
 
 If the Leader loses the Dilation connection for whatever reason, it will initiate a reconnection attempt.
 This involves sending a `reconnect` message and according hints over the Mailbox connection,
-the same way as for initially establishing the connection.
+the same way as for initially establishing the connection (i.e. using `DILATE-` phases).
 Once a new connection is established and the handshake completes,
 both sides re-transmit their outbound messages that were lost due to the connection interruption.
+Note that the new connection will have a different encryption key and state, therefore the messages need to be encrypted anew.
+It is not possible to only store the ciphertext for re-sending.
 
 Each message over the Dilation connection starts with a one-byte type indicator.
 The rest of the message depends upon the type:
@@ -326,6 +313,8 @@ Both directions share a number space (unlike the sequence numbers),
 so the Dilation Leader uses odd numbers and the Follower uses even ones.
 Id `0` is special and used for the control channel.
 The control channel is always open; it cannot be opened nor closed explicitly.
+For now, channel IDs must be treated as a Dilation internal and not be exposed to the applications via API.
+This restriction might be lifted in the future.
 
 Sub-channels may be opened with a OPEN message and closed with CLOSE messages.
 Any side may close a channel. The other side, upon receiving that close message,
@@ -340,7 +329,7 @@ The side that opens a sub-channel is named the Initiator, and the other side is 
 Subchannels can be initiated in either direction, independent of the Leader/Follower distinction.
 For a typical file-transfer application, the subchannel would be initiated by the side seeking to send a file.
 
-### Flow Control
+### Flow Control and Quality of Service
 
 TODO review and potentially remove? ~piegames
 
