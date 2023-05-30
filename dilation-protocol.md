@@ -1,19 +1,41 @@
-# Dilation Internals
+# Dilation protocol
 
-Wormhole dilation involves several moving parts. Both sides exchange messages
-through the Mailbox server to coordinate the establishment of a more direct
-connection. This connection might flow in either direction, so they trade
-"connection hints" to point at potential listening ports. This process might
-succeed in making multiple connections at about the same time, so one side
-must select the best one to use, and cleanly shut down the others. To make
-the dilated connection *durable*, this side must also decide when the
-connection has been lost, and then coordinate the construction of a
-replacement. Within this connection, a series of queued-and-acked subchannel
-messages are used to open/use/close the application-visible subchannels.
+Due to the nature of its construction, the Mailbox server unsuited for the exchange of larger amounts of data.
+Therefore, many applications use the Transit protocol to establish a high-bandwidth channel to use for the acutal data transfer.
+
+Dilation builds upon this concept, but tries to make it a first-class citizen that is also easy to use.
+The idea is that clients say that they want to "dilate" a Wormhole,
+and the Dilation protocol will take care of the rest to establish such a high-bandwidth connection automatically.
+
+The usually used Transit connection is replaced by a Dilation connection, that is managed by the Dilation implementation.
+Compared to the Transit connection, it has additional features like resilience against connection interruptions and sub-channels.
+The protocol takes care of automatically re-establishing such a channel after a connection interruption,
+including re-sending all messages that got lost.
+It has the concept of sub-channels built in, and will take care of the sub-channel management and data multiplexing.
+
+## Overview
+
+A dilated Wormhole connection involves several moving parts.
+
+The Mailbox on the Mailbox server remains accessible to the application.
+It is additionally used by the Dilation implementation to exchange internal coordination messages.
+These are currently only used to communicate connection status and negotiate a new Dilation connection.
+Capability discovery is done by adding new fields to the Wormhole protocol's existing `versions` message instead.
+
+On the base level of the Dilation connection, framed and encrypted messages are exchanged,
+same as in Transit — although with different cryptographic primitives.
+
+Unlike in Transit, the application does not have direct access to it though.
+Instead, the Dilation protocol adds its own message header and control logic, wrapping the actual application messages.
+This control logic takes care of monitoring the connection status, acknowledging message receipts,
+multiplexing multiple communication channels over that single connection, and re-sending lost messages after connection loss.
+
+The application receives access to the individual sub-channels to send and receive messages over them.
+It also has the possibility to open and close new sub-channels.
 
 ## Capability discovery
 
-The Wormhole protocol includes a `versions` message sent immediately after the shared PAKE key is established.
+The Wormhole protocol has a `versions` message sent immediately after the shared PAKE key is established.
 This also serves as a key-confirmation message, allowing each side to confirm that the other side knows the right key.
 The body of the `versions` message is a JSON-formatted string with keys that are available for learning the abilities of the peer.
 Dilation is signaled by a key named `can-dilate`, whose value is a list of strings.
@@ -21,18 +43,19 @@ Any version present in both side's lists is eligible for use.
 
 The connection abilities are communicated similarly to Transit, in a `dilation-abilities` key.
 Currently supported: `direct-tcp-v1`, `tor-tcp-v1` and `relay-v1`.
-These have similar meaning as in Transit (referring to the ability to make a direct connection, a connection via Tor and a connection via the Transit Relay respectively)
-See :ref:`transit.md` for more details.
+These have similar meaning as in Transit (referring to the ability to make a direct connection, a connection via Tor and a connection via the Transit Relay respectively).
+See the [Transit protocol](./Transit.md) for more details.
 
 For example:
 
-```
+```json
 {
-    "can-dilate": ["1"]
+    "can-dilate": ["1"],
     "dilation-abilities": [
         {"type": "direct-tcp-v1"},
         {"type": "relay-v1"},
-    ]
+    ],
+    // more potentially non-dilation fields
 }
 ```
 
@@ -43,352 +66,237 @@ Both sides MUST use the version selected by the Leader (see next section).
 
 Currently there is only one version: `"1"`.
 
-
 ## Leaders and Followers
 
-Each side of a Wormhole has a randomly-generated dilation `side` string (this
-is included in the `please` message, and is independent of the
-Wormhole's mailbox "side"). When the wormhole is dilated, the side with the
-lexicographically-higher "side" value is named the "Leader", and the other
-side is named the "Follower". The general wormhole protocol treats both sides
-identically, but the distinction matters for the dilation protocol.
+The Dilation protocol calls one side of the communication "Leader" and the other one "Follower".
+This is an implementation detail of the protocol which should not be exposed to the upper layer application.
+It is used whenever some operation should only be performed by one of the two peers.
 
-Both sides send a `please` as soon as dilation is triggered. Each side
-discovers whether it is the Leader or the Follower when the peer's
-"please" message arrives. The Leader has exclusive control over whether a
-given connection is considered established or not: if there are multiple
-potential connections to use, the Leader decides which one to use, and the
-Leader gets to decide when the connection is no longer viable (and triggers
-the establishment of a new one).
+Each side of a Wormhole has a randomly-generated dilation `side` string
+(this is included in the `please` message, and is independent of the Wormhole's mailbox "side").
+When the wormhole is dilated, the side with the lexicographically-higher "side" value is named the "Leader",
+and the other side is named the "Follower".
+The general wormhole protocol treats both sides identically, but the distinction matters for the dilation protocol.
 
-The version message payload has a key called `can-dilate` that has a
-list of versions supported by a particular version of the client (eg:
-["1", "2"]). After receiving the version message from the other
-client, each client computes a list of mutually compatible "shared"
-versions that are commonly supported by both the clients. At the
-moment, the version number is "1", so if both the clients support that
-version, we pick the dilation version as "1". If the clients cannot
-find a mutually compatible version, then dilation would fail.
+## Mailbox changes
 
+TODO maybe move to ./client-protocol.md? ~piegames
 
+The Mailbox on the rendezvous server is used to deliver dilation requests and connection hints.
+The current mailbox protocol uses named "phases" to distinguish messages
+(rather than behaving like a regular ordered channel of arbitrary frames or bytes),
+and all-number phase names are reserved for application data.
+Therefore the dilation control messages use phases named `DILATE-0`, `DILATE-1`, etc.
+Like for the "regular" named phases, each side maintains its own counter,
+so one side might be up to e.g. `DILATE-5` while the other has only gotten as far as `DILATE-2`.
+Remember that all phases beyond the initial `pake` phase are encrypted by the shared session key.
 
-## Connection Layers
+~~A future mailbox protocol might provide a simple ordered stream of typed
+messages, with application records and dilation records mixed together.~~
 
-We describe the protocol as a series of layers. Messages sent on one layer
-may be encoded or transformed before being delivered on some other layer.
+## Dilation message over the mailbox
 
-L1 is the mailbox channel (queued store-and-forward messages that always go
-to the mailbox server, and then are forwarded to other clients subscribed to
-the same mailbox). Both clients remain connected to the mailbox server until
-the Wormhole is closed. They send DILATE-n messages to each other to manage
-the dilation process, including records like `please`, `connection-hints`,
-`reconnect`, and `reconnecting`.
+Each `DILATE-n` message is a JSON object with a `type` field that has a string value.
+It might have other keys that depend upon the type.
 
-L2 is the set of competing connection attempts for a given generation of
-connection. Each time the Leader decides to establish a new connection, a new
-generation number is used. Hopefully these are direct TCP connections between
-the two peers, but they may also include connections through the transit
-relay. Each connection must go through an encrypted handshake process before
-it is considered viable. Viable connections are then submitted to a selection
-process (on the Leader side), which chooses exactly one to use, and drops the
-others. It may wait an extra few seconds in the hopes of getting a "better"
-connection (faster, cheaper, etc), but eventually it will select one.
+### Initiating Dilation
 
-L3 is the current selected connection. There is one L3 for each generation.
-At all times, the wormhole will have exactly zero or one L3 connection. L3 is
-responsible for the selection process, connection monitoring/keepalives, and
-serialization/deserialization of the plaintext frames. L3 delivers decoded
-frames and connection-establishment events up to L4.
+For dilation to succeed, both sides must initate Dilation.
+If both sides support Dilation but only one of them initiates it,
+the initialization will stall and never complete.
 
-L4 is the persistent higher-level channel. It is created as soon as the first
-L3 connection is selected, and lasts until wormhole is closed entirely. L4
-contains OPEN/DATA/CLOSE/ACK messages: OPEN/DATA/CLOSE have a sequence number
-(scoped to the L4 connection and the direction of travel), and the ACK
-messages reference those sequence numbers. When a message is given to the L4
-channel for delivery to the remote side, it is always queued, then
-transmitted if there is an L3 connection available. This message remains in
-the queue until an ACK is received to retire it. If a new L3 connection is
-made, all queued messages will be re-sent (in seqnum order).
+Dilation is initiazed by sending a `please` (i.e. "please dilate") type message with a set of versions that can be accepted.
+Versions use strings, rather than integers, to support experimental protocols, however there is still a total ordering of preferability.
 
-L5 are subchannels. There is one pre-established subchannel 0 known as the
-"control channel", which does not require an OPEN message. All other
-subchannels are created by the receipt of an OPEN message with the subchannel
-number. DATA frames are delivered to a specific subchannel. When the
-subchannel is no longer needed, one side will invoke the ``close()`` API
-(``loseConnection()`` in Twisted), which will cause a CLOSE message to be
-sent, and the local L5 object will be put into the "closing "state. When the
-other side receives the CLOSE, it will send its own CLOSE for the same
-subchannel, and fully close its local object (``connectionLost()``). When the
-first side receives CLOSE in the "closing" state, it will fully close its
-local object too.
-
-All L5 subchannels will be paused (``pauseProducing()``) when the L3
-connection is paused or lost. They are resumed when the L3 connection is
-resumed or reestablished.
-
-## Initiating Dilation
-
-Dilation is triggered by calling the `w.dilate()` API. This returns a
-Deferred that will fire once the first L3 connection is established. It fires
-with a 3-tuple of endpoints that can be used to establish subchannels, or an
-error if dilation is not possible. If the other side's `versions` message
-indicates that it does not support dilation, the Deferred will errback with
-an `OldPeerCannotDilateError`.
-
-For dilation to succeed, both sides must call `w.dilate()`, since the
-resulting endpoints are the only way to access the subchannels. If the other
-side is capable of dilation, but never calls `w.dilate()`, the Deferred will
-never fire.
-
-The L1 (mailbox) path is used to deliver dilation requests and connection
-hints. The current mailbox protocol uses named "phases" to distinguish
-messages (rather than behaving like a regular ordered channel of arbitrary
-frames or bytes), and all-number phase names are reserved for application
-data (sent via `w.send_message()`). Therefore the dilation control messages
-use phases named `DILATE-0`, `DILATE-1`, etc. Each side maintains its own
-counter, so one side might be up to e.g. `DILATE-5` while the other has only
-gotten as far as `DILATE-2`. This effectively creates a pair of
-unidirectional streams of `DILATE-n` messages, each containing one or more
-dilation record, of various types described below. Note that all phases
-beyond the initial VERSION and PAKE phases are encrypted by the shared
-session key.
-
-A future mailbox protocol might provide a simple ordered stream of typed
-messages, with application records and dilation records mixed together.
-
-Each `DILATE-n` message is a JSON-encoded dictionary with a `type` field that
-has a string value. The dictionary will have other keys that depend upon the
-type.
-
-`w.dilate()` triggers transmission of a `please` (i.e. "please dilate")
-record with a set of versions that can be accepted. Versions use strings,
-rather than integers, to support experimental protocols, however there is
-still a total ordering of preferability.
-
-```
-{ "type": "please",
+```json
+{
+  "type": "please",
   "side": "abcdef",
-  "accepted-versions": ["1"]
 }
 ```
 
-If one side receives a `please` before `w.dilate()` has been called locally,
-the contents are stored in case `w.dilate()` is called in the future. Once
-both `w.dilate()` has been called and the peer's `please` has been received,
-the side determines whether it is the Leader or the Follower. Both sides also
-compare `accepted-versions` fields to choose the best mutually-compatible
-version to use: they should always pick the same one.
+If one side receives a `please` before having initiated dilation itself,
+the contents are stored in case it decides to do so in the future.
+Once both sides have sent and received a `please` message,
+the side determines whether it is the leader or the follower.
 
-Then both sides begin the connection process for generation 1 by opening
-listening sockets and sending `connection-hint` records for each one. After a
-slight delay they will also open connections to the Transit Relay of their
-choice and produce hints for it too. The receipt of inbound hints (on both
-sides) will trigger outbound connection attempts.
+### Establishing a Dilation connection
 
-Some number of these connections may succeed, and the Leader decides which to
-use (via an in-band signal on the established connection). The others are
-dropped.
+Then both sides begin the connection process by opening listening sockets and sending `connection-hint` messages for each one.
+After a slight delay they will also open connections to the Transit Relay(s) of their choice and produce hints for it too.
+The receipt of inbound hints (on both sides) will trigger outbound connection attempts.
+The hints are encoded as described in the Transit protocol.
+(TODO specify the exact encoding, give examples ~piegames)
 
-If something goes wrong with the established connection and the Leader
-decides a new one is necessary, the Leader will send a `reconnect` message.
-This might happen while connections are still being established, or while the
-Follower thinks it still has a viable connection (the Leader might observe
-problems that the Follower does not), or after the Follower thinks the
-connection has been lost. In all cases, the Leader is the only side which
-should send `reconnect`. The state machine code looks the same on both sides,
-for simplicity, but one path on each side is never used.
+Some of these connections may succeed, and the Leader decides which to use
+(via an in-band signal on the established connection, see "key confirmation message" below).
+Both sides then drop all other connection attempts and close them.
 
-Upon receiving a `reconnect`, the Follower should stop any pending connection
-attempts and terminate any existing connections (even if they appear viable).
-Listening sockets may be retained, but any previous connection made through
-them must be dropped.
+If something goes wrong with the established connection and the Leader decides a new one is necessary,
+the Leader will send a `reconnect` message over the Wormhole.
+This might happen while connections are still being established,
+or while the Follower thinks it still has a viable connection
+(the Leader might observe problems that the Follower does not),
+or after the Follower thinks the connection has been lost.
+In all cases, the Leader is the only side which should send `reconnect`.
 
-Once all connections have stopped, the Follower should send a `reconnecting`
-message, then start the connection process for the next generation, which
-will send new `connection-hint` messages for all listening sockets.
+```json
+{ "type": "reconnect" }
+```
 
-Generations are non-overlapping. The Leader will drop all connections from
-generation 1 before sending the `reconnect` for generation 2, and will not
-initiate any gen-2 connections until it receives the matching `reconnecting`
-from the Follower. The Follower must drop all gen-1 connections before it
-sends the `reconnecting` response (even if it thinks they are still
-functioning: if the Leader thought the gen-1 connection still worked, it
-wouldn't have started gen-2).
+Upon receiving a `reconnect`, the Follower should stop any pending connection attempts and terminate any existing connections
+(even if they appear viable).
+Listening sockets may be retained, but any previous connection made through them must be dropped.
 
-(TODO: what about a follower->leader connection that was started before
+Once all connections have stopped, the Follower should send a `reconnecting` message,
+then start the connection process for the next generation,
+which will send new `connection-hint` messages for all listening sockets.
+
+```json
+{ "type": "reconnecting" }
+```
+
+The Leader must drop all existing connections from before sending the `reconnect`,
+and will not initiate any new connections until it receives the matching `reconnecting` from the Follower.
+The Follower must drop all previous connections before it sends the `reconnecting` response.
+
+~~(TODO: what about a follower->leader connection that was started before
 start-dilation is received, and gets established on the Leader side after
 start-dilation is sent? the follower will drop it after it receives
-start-dilation, but meanwhile the leader may accept it as gen2)
+start-dilation, but meanwhile the leader may accept it as gen2 ~warner)~~
 
 (probably need to include the generation number in the handshake, or in the
-derived key)
+derived key ~warner — please please don't ~piegames)
 
-(TODO: reduce the number of round-trip stalls here, I've added too many)
+(TODO: reduce the number of round-trip stalls here, I've added too many ~warner)
 
-Each side is in the "connecting" state (which encompasses both making
-connection attempts and having an established connection) starting with the
-receipt of a `please` message and a local `w.dilate()` call. The
-Leader remains in that state until it abandons the connection and sends a
-`reconnect` message, at which point it remains in the "flushing" state until
-the Follower's `reconnecting` message is received. The Follower remains in
-"connecting" until it receives `reconnect`, then it stays in "dropping" until
-it finishes halting all outstanding connections, after which it sends
-`reconnecting` and switches back to "connecting".
-
-"Connection hints" are type/address/port records that tell the other side of
-likely targets for L2 connections. Both sides will try to determine their
-external IP addresses, listen on a TCP port, and advertise `(tcp,
-external-IP, port)` as a connection hint. The Transit Relay is also used as a
-(lower-priority) hint. These are sent in `connection-hint` records, which can
-be sent any time after both sending and receiving a `please` record. Each
-side will initiate connections upon receipt of the hints.
-
-```
-{ "type": "connection-hints",
-  "hints": [ ... ]
-}
-```
-
-Hints can arrive at any time. One side might immediately send hints that can
-be computed quickly, then send additional hints later as they become
-available. For example, it might enumerate the local network interfaces and
-send hints for all of the LAN addresses first, then send port-forwarding
-(UPnP) requests to the local router. When the forwarding is established
-(providing an externally-visible IP address and port), it can send additional
-hints for that new endpoint. If the other peer happens to be on the same LAN,
-the local connection can be established without waiting for the router's
-response.
-
+Hints can arrive at any time. One side might immediately send hints that can be computed quickly,
+then send additional hints later as they become available.
+For example, it might enumerate the local network interfaces and send hints for all of the LAN addresses first,
+then send port-forwarding (UPnP) requests to the local router.
+When the forwarding is established (providing an externally-visible IP address and port),
+it can send additional hints for that new endpoint.
+If the other peer happens to be on the same LAN,
+the local connection can be established without waiting for the router's response.
 
 ### Connection Hint Format
 
-Each member of the `hints` field describes a potential L2 connection target
-endpoint, with an associated priority and a set of hints.
+TODO delegate this to Transit
 
-The priority is a number (positive or negative float), where larger numbers
-indicate that the client supplying that hint would prefer to use this
-connection over others of lower number. This indicates a sense of cost or
-performance. For example, the Transit Relay is lower priority than a direct
-TCP connection, because it incurs a bandwidth cost (on the relay operator),
-as well as adding latency.
+## Dilation connection cryptography
 
-Each endpoint has a set of hints, because the same target might be reachable
-by multiple hints. Once one hint succeeds, there is no point in using the
-other hints.
+Cryptographic primitives are provided by the [Noise Protocol](https://noiseprotocol.org/).
+Specifically, the exact protocol variant is called `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`,
+which means using the `NNpsk0` pattern for the handshake, Curve25519 Diffie-Hellmann key exchange,
+ChaCha20/Poly1305 authenticated encryption, and the BLAKE2s hash function.
 
-TODO: think this through some more. What's the example of a single endpoint
-reachable by multiple hints? Should each hint have its own priority, or just
-each endpoint?
+### Initial handshake
 
-## L2 protocol
+TODO document the special relay handshake (it's the same as in Transit) ~piegames
 
-Upon ``connectionMade()``, both sides send their handshake message. The
-Leader sends "Magic-Wormhole Dilation Handshake v1 Leader\n\n". The Follower
-sends "Magic-Wormhole Dilation Handshake v1 Follower\n\n". This should
-trigger an immediate error for most non-magic-wormhole listeners (e.g. HTTP
-servers that were contacted by accident). If the wrong handshake is received,
-the connection will be dropped. For debugging purposes, the node might want
-to keep looking at data beyond the first incorrect character and log
-a few hundred characters until the first newline.
+Upon established connection (or at least a viable candidate), both sides send their handshake message.
+The Leader sends "Magic-Wormhole Dilation Handshake v1 Leader\n\n".
+The Follower sends "Magic-Wormhole Dilation Handshake v1 Follower\n\n".
+This should trigger an immediate error for most non-magic-wormhole listeners
+(e.g. HTTP servers that were contacted by accident).
+If the wrong handshake is received, the connection will be dropped.
+For debugging purposes, the node might want to keep looking at data beyond the first incorrect character
+and log a few hundred characters until the first newline.
 
-Everything beyond that point is a Noise protocol message, which consists of a
-4-byte big-endian length field, followed by the indicated number of bytes.
-This uses the `NNpsk0` pattern with the Leader as the first party ("-> psk,
-e" in the Noise spec), and the Follower as the second ("<- e, ee"). The
-pre-shared-key is the "dilation key", which is statically derived from the
-master PAKE key using HKDF. Each L2 connection uses the same dilation key,
-but different ephemeral keys, so each gets a different session key.
+### Message framing and maximum message size
+
+Everything after that point is a message in the Noise protocol, prefixed by a 4-byte big-endian length field.
+As Noise adds some overhead for authentication, the actual decrypted payload is shorter than the length field indicates.
+(In other words: the length field refers to the encrypted Noise message's length.)
+
+The Noise Protocol supports only messages up to 65535 bytes in length,
+while Dilation supports significantly larger messages due to the 32 bit length field.
+When the input payload size for a message exceeds Noise's limit, several Noise messages are used and concatenated together.
+All but the last one then must have the maximum length of 65535 bytes, and the length field refers to the sum of their lengths.
+The Noise protocol adds 16 bytes of overhead for authentication to each Noise message,
+therefore the maximal payload of each message is 4293918703 bytes (65537 Noise messages with 65519 bytes of payload each).
+
+Implementations are encouraged to define lower maximum message sizes for efficiency reasons.
+
+The length field must be authenticated by adding it to the authenticated data input of the Noise message.
+If a message consists of multiple noise messages, only the first of them authenticates the length field.
+ TODO review & implement ~piegames
+
+### Noise key exchange
+
+After the handshake, both sides exchange Noise messages for the handshake according to the `NNpsk0` pattern.
+Leader sends the first message ("-> psk, e" in the Noise spec), and the Follower as the second one ("<- e, ee").
+The pre-shared-key both sides use here is the "dilation key", which is statically derived from the master PAKE key using HKDF.
+The HKDF used to derive it is the RFC5869 HMAC construction instantiated with Sha256 as hashing algorithm.
+Inputs are the Wormhole session key (obtained through PAKE), a tag of the ASCII bytes "dilation-v1" and no salt;
+Output length is 32 bytes.
+The same pre-shared key is re-used across connections, but due to the different ephemeral keys each on gets a different session key.
 
 The Leader sends the first message, which is a psk-encrypted ephemeral key.
 The Follower sends the next message, its own psk-encrypted ephemeral key.
-These two messages are known as "handshake messages" in the Noise protocol,
-and must be processed in a specific order (the Leader must not accept the
-Follower's message until it has generated its own). Noise allows handshake
-messages to include a payload, but we do not use this feature.
+These two messages are known as "handshake messages" in the Noise protocol, and must be processed in a specific order
+(the Leader must not accept the Follower's message until it has generated its own).
+Noise allows handshake messages to include a payload, but we do not use this feature.
 
-All subsequent messages as known as "Noise transport messages", and use
-independent channels for each direction, so they no longer have ordering
-dependencies. Transport messages are encrypted by the shared key, in a form
-that evolves as more messages are sent.
+All subsequent messages are known as "Noise transport messages", and are independent for each direction.
+Transport messages are encrypted by the shared key, in a form that evolves as more messages are sent.
 
-The Follower's first transport message is an empty packet, which we use as a
-"key confirmation message" (KCM).
+The Follower's first transport message has an empty payload, which we use as a "key confirmation message" (KCM).
 
-The Leader doesn't send a transport message right away: it waits to see the
-Follower's KCM, which indicates this connection is viable (i.e. the Follower
-used the same dilation key as the Leader, which means they both used the same
-wormhole code).
+The Leader doesn't send a transport message right away: it waits to see the Follower's KCM,
+which indicates this connection is viable (i.e. the Follower used the same dilation key as the Leader,
+which means they both used the same wormhole code).
 
-The Leader delivers the now-viable protocol object to the L3 manager, which
-will decide which connection to select. When some L2 connection is selected
-to be the new L3, the Leader finally sends an empty KCM of its own over that
-L2, to let the Follower know which connection has been selected. All other L2
-connections (either viable or still in handshake) are dropped, and all other
-connection attempts are cancelled. All listening sockets may or may not be
-shut down (TODO: think about it).
+Multiple connection attempts and handshakes may happen in parallel.
+Of those where the Leader received a KCM, it chooses one of them to be actually used.
+It will send an empty KCM to the Follower to mark that connection, and close all others.
+All other connection attempts on both sides will be cancelled.
+All listening sockets may or may not be shut down (TODO: think about it ~warner).
 
-After sending their KCM, the Follower will wait for either an empty KCM (at
-which point the L2 connection is delivered to the Dilation manager as the new
-L3), a disconnection, or an invalid message (which causes the connection to
-be dropped). Other connections and/or listening sockets are stopped.
+## Messages over the Dilation connection
 
-Internally, the L2Protocol object manages the Noise session itself. It knows
-(via a constructor argument) whether it is on the Leader or Follower side,
-which affects both the role is plays in the Noise pattern, and the reaction
-to receiving the handshake message / ephemeral key (for which only the
-Follower sends an empty KCM message). After that, the L2Protocol notifies the
-L3 object in three situations:
+Unlike with applications using Transit,
+the application layer messages are not sent directly over the Dilation connection.
+Instead, they get wrapped by this middle layer which provides the following features:
 
-* the Noise session produces a valid decrypted frame (for Leader, this
-  includes the Follower's KCM, and thus indicates a viable candidate for
-  connection selection)
-* the Noise session reports a failed decryption
-* the TCP session is lost
+- Sub-channel multiplexing
+- Pings and ACKs for connection status tracking
+- Automatic reconnection after connection loss
+- Durable channel with automatic re-transmission of lost messages after reconnect
 
-All notifications include a reference to the L2Protocol object (`self`). The
-L3 object uses this reference to either close the connection (for errors or
-when the selection process chooses someone else), to send the KCM message
-(after selection, only for the Leader), or to send other L4 messages. The L3
-object will retain a reference to the winning L2 object.
+~~In the future, we might have L2 links that are less connection-oriented,
+which might have a unidirectional failure mode, at which point we'll need to
+monitor full roundtrips. To accomplish this, the Leader will send periodic
+unconditional PINGs, and the Follower will respond with PONGs. If the
+Leader->Follower connection is down, the PINGs won't arrive and no PONGs will
+be produced. If the Follower->Leader direction has failed, the PONGs won't
+arrive. The delivery of both will be delayed by actual data, so the timeouts
+should be adjusted if we see regular data arriving.~~
 
-## L3 protocol
+If the Leader loses the Dilation connection for whatever reason, it will initiate a reconnection attempt.
+This involves sending a `reconnect` message and according hints over the Mailbox connection,
+the same way as for initially establishing the connection (i.e. using `DILATE-` phases).
+Once a new connection is established and the handshake completes,
+both sides re-transmit their outbound messages that were lost due to the connection interruption
+(i.e. those for which they have not received an ack from the other side).
+Note that the new connection will have a different encryption key and state, therefore the messages need to be encrypted anew.
+It is not possible to only store the ciphertext for re-sending.
 
-The L3 layer is responsible for connection selection, monitoring/keepalives,
-and message (de)serialization. Framing is handled by L2, so the inbound L3
-codepath receives single-message bytestrings, and delivers the same down to
-L2 for encryption, framing, and transmission.
+Each message over the Dilation connection starts with a one-byte type indicator.
+The rest of the message depends upon the type:
 
-Connection selection takes place exclusively on the Leader side, and includes
-the following:
+* 0x00 PING, 4-byte ping-id
+* 0x01 PONG, 4-byte ping-id
+* 0x02 OPEN, 4-byte subchannel-id, 4-byte seqnum
+* 0x03 DATA, 4-byte subchannel-id, 4-byte seqnum, variable-length payload
+* 0x04 CLOSE, 4-byte subchannel-id, 4-byte seqnum
+* 0x05 ACK, 4-byte response-seqnum
 
-* receipt of viable L2 connections from below (indicated by the first valid
-  decrypted frame received for any given connection)
-* expiration of a timer
-* comparison of TBD quality/desirability/cost metrics of viable connections
-* selection of winner
-* instructions to losing connections to disconnect
-* delivery of KCM message through winning connection
-* retain reference to winning connection
+### Pings
 
-On the Follower side, the L3 manager just waits for the first connection to
-receive the Leader's KCM, at which point it is retained and all others are
-dropped.
-
-The L3 manager knows which "generation" of connection is being established.
-Each generation uses a different dilation key (?), and is triggered by a new
-set of L1 messages. Connections from one generation should not be confused
-with those of a different generation.
-
-Each time a new L3 connection is established, the L4 protocol is notified. It
-will will immediately send all the L4 messages waiting in its outbound queue.
-The L3 protocol simply wraps these in Noise frames and sends them to the
-other side.
-
-The L3 manager monitors the viability of the current connection, and declares
-it as lost when bidirectional traffic cannot be maintained. It uses PING and
-PONG messages to detect this. These also serve to keep NAT entries alive,
-since many firewalls will stop forwarding packets if they don't observe any
-traffic for e.g. 5 minutes.
+PING and PONG messages are regularly exchanged to monitor the status of the connection.
+They also serve to keep NAT entries alive, since some firewalls have unreasonably low connection timeouts
+and may cause connection drops otherwise.
 
 Our goals are:
 
@@ -411,157 +319,54 @@ In addition, the Leader must:
 * each time the timer fires, if the flag was clear then drop the connection,
   otherwise clear the flag
 
-In the future, we might have L2 links that are less connection-oriented,
-which might have a unidirectional failure mode, at which point we'll need to
-monitor full roundtrips. To accomplish this, the Leader will send periodic
-unconditional PINGs, and the Follower will respond with PONGs. If the
-Leader->Follower connection is down, the PINGs won't arrive and no PONGs will
-be produced. If the Follower->Leader direction has failed, the PONGs won't
-arrive. The delivery of both will be delayed by actual data, so the timeouts
-should be adjusted if we see regular data arriving.
+Receiving any PING will provoke a PONG in response, with a copy of the ping-id field.
+The 30-second timer will produce unprovoked PONGs with a ping-id of all zeros.
+A future viability protocol might use PINGs to test for roundtrip functionality.
 
-If the connection is dropped before the wormhole is closed (either the other
-end explicitly dropped it, we noticed a problem and told TCP to drop it, or
-TCP noticed a problem itself), the Leader-side L3 manager will initiate a
-reconnection attempt. This uses L1 to send a new DILATE message through the
-mailbox server, along with new connection hints. Eventually this will result
-in a new L3 connection being established.
+### Durable channel / Sequence numbers and ACKs
 
-Finally, L3 is responsible for message serialization and deserialization. L2
-performs decryption and delivers plaintext frames to L3. Each frame starts
-with a one-byte type indicator. The rest of the message depends upon the
-type:
+The OPEN, DATA, CLOSE and ACK messages all contain a big-endian encoded sequence number.
+They start at 0, and monotonically increment for each new message
+(except ACKs, which use the sequence number of the acknowledged message).
+Each direction has a separate number space and counter.
 
-* 0x00 PING, 4-byte ping-id
-* 0x01 PONG, 4-byte ping-id
-* 0x02 OPEN, 4-byte subchannel-id, 4-byte seqnum
-* 0x03 DATA, 4-byte subchannel-id, 4-byte seqnum, variable-length payload
-* 0x04 CLOSE, 4-byte subchannel-id, 4-byte seqnum
-* 0x05 ACK, 4-byte response-seqnum
+When sending a message, it must be stored locally until a matching acknowledgement arrives.
+When receiving a message, it must be acknowledged by sending a corresponding ACK message.
+If the connection breaks down, all locally un-acked messages must be re-sent upon reconnect.
+Clients only need to track the highest ACK value they received,
+therefore one can acknowledge multiple messages with one ACK.
+Messages may arrive multiple times; received messages with old sequence numbers must be ignored.
+New messages must be sent strictly in order.
 
-All seqnums are big-endian, and are provided by the L4 protocol. The other
-fields are arbitrary and not interpreted as integers. The subchannel-ids must
-be allocated by both sides without collision, but otherwise they are only
-used to look up L5 objects for dispatch. The response-seqnum is always copied
-from the OPEN/DATA/CLOSE packet being acknowledged.
+### Sub-channel multiplexing
 
-L3 consumes the PING and PONG messages. Receiving any PING will provoke a
-PONG in response, with a copy of the ping-id field. The 30-second timer will
-produce unprovoked PONGs with a ping-id of all zeros. A future viability
-protocol will use PINGs to test for roundtrip functionality.
+The DATA payloads are multiplexed over some virtual sub-channels. They may be
+exposed to the application as logically independent data streams.
 
-All other messages (OPEN/DATA/CLOSE/ACK) are deserialized and delivered
-"upstairs" to the L4 protocol handler.
+Each subchannel uses a distinct subchannel-id, which is a big-endian four-byte identifier.
+Both directions share a number space (unlike the sequence numbers),
+so the Dilation Leader uses odd numbers and the Follower uses even ones.
+Id `0` is special and used for the control channel.
+The control channel is always open; it cannot be opened nor closed explicitly.
+For now, channel IDs must be treated as a Dilation internal and not be exposed to the applications via API.
+This restriction might be lifted in the future.
 
-The current L3 connection's `IProducer`/`IConsumer` interface is made
-available to the L4 flow-control manager.
+Sub-channels may be opened with a OPEN message and closed with CLOSE messages.
+Any side may close a channel. The other side, upon receiving that close message,
+should stop sending new messages and confirm with a CLOSE message too.
 
-## L4 protocol
+DATA payloads that arrive for a non-open sub-channel should be ignored.
+TODO can we please remove that sentence? ~piegames
+Subchannel-ids should not be reused
+(it would probably work, the protocol hasn't been analyzed enough to be sure).
 
-The L4 protocol manages a durable stream of OPEN/DATA/CLOSE/ACK messages.
-Since each will be enclosed in a Noise frame before they pass to L3, they do
-not need length fields or other framing.
+The side that opens a sub-channel is named the Initiator, and the other side is named the Acceptor.
+Subchannels can be initiated in either direction, independent of the Leader/Follower distinction.
+For a typical file-transfer application, the subchannel would be initiated by the side seeking to send a file.
 
-Each OPEN/DATA/CLOSE has a sequence number, starting at 0, and monotonically
-increasing by 1 for each message. Each direction has a separate number space.
+## Flow Control and Quality of Service
 
-The L4 manager maintains a double-ended queue of unacknowledged outbound
-messages. Subchannel activity (opening, closing, sending data) cause messages
-to be added to this queue. If an L3 connection is available, these messages
-are also sent over that connection, but they remain in the queue in case the
-connection is lost and they must be retransmitted on some future replacement
-connection. Messages stay in the queue until they can be retired by the
-receipt of an ACK with a matching response-sequence-number. This provides
-reliable message delivery that survives the L3 connection being replaced.
-
-ACKs are not acked, nor do they have seqnums of their own. Each inbound side
-remembers the highest ACK it has sent, and ignores incoming OPEN/DATA/CLOSE
-messages with that sequence number or higher. This ensures in-order
-at-most-once processing of OPEN/DATA/CLOSE messages.
-
-Each inbound OPEN message causes a new L5 subchannel object to be created.
-Subsequent DATA/CLOSE messages for the same subchannel-id are delivered to
-that object.
-
-Each time an L3 connection is established, the side will immediately send all
-L4 messages waiting in the outbound queue. A future protocol might reduce
-this duplication by including the highest received sequence number in the L1
-PLEASE message, which would effectively retire queued messages before
-initiating the L2 connection process. On any given L3 connection, all
-messages are sent in-order. The receipt of an ACK for seqnum `N` allows all
-messages with `seqnum <= N` to be retired.
-
-The L4 layer is also responsible for managing flow control among the L3
-connection and the various L5 subchannels.
-
-## L5 subchannels
-
-The L5 layer consists of a collection of "subchannel" objects, a dispatcher,
-and the endpoints that provide the Twisted-flavored API.
-
-Other than the "control channel", all subchannels are created by a client
-endpoint connection API. The side that calls this API is named the Initiator,
-and the other side is named the Acceptor. Subchannels can be initiated in
-either direction, independent of the Leader/Follower distinction. For a
-typical file-transfer application, the subchannel would be initiated by the
-side seeking to send a file.
-
-Each subchannel uses a distinct subchannel-id, which is a four-byte
-identifier. Both directions share a number space (unlike L4 seqnums), so the
-rule is that the Leader side sets the last bit of the last byte to a 1, while
-the Follower sets it to a 0. These are not generally treated as integers,
-however for the sake of debugging, the implementation generates them with a
-simple big-endian-encoded counter (`counter*2+1` for the Leader,
-`counter*2+2` for the Follower, with id `0` reserved for the control
-channel).
-
-When the `client_ep.connect()` API is called, the Initiator allocates a
-subchannel-id and sends an OPEN. It can then immediately send DATA messages
-with the outbound data (there is no special response to an OPEN, so there is
-no need to wait). The Acceptor will trigger their `.connectionMade` handler
-upon receipt of the OPEN.
-
-Subchannels are durable: they do not close until one side calls
-`.loseConnection` on the subchannel object (or the enclosing Wormhole is
-closed). Either the Initiator or the Acceptor can call `.loseConnection`.
-This causes a CLOSE message to be sent (with the subchannel-id). The other
-side will send its own CLOSE message in response. Each side will signal the
-`.connectionLost()` event upon receipt of a CLOSE.
-
-There is no equivalent to TCP's "half-closed" state, however if only one side
-calls `close()`, then all data written before that call will be delivered
-before the other side observes `.connectionLost()`. Any inbound data that was
-queued for delivery before the other side sees the CLOSE will still be
-delivered to the side that called `close()` before it sees
-`.connectionLost()`. Internally, the side which called `.loseConnection` will
-remain in a special "closing" state until the CLOSE response arrives, during
-which time DATA payloads are still delivered. After calling `close()` (or
-receiving CLOSE), any outbound `.write()` calls will trigger an error.
-
-DATA payloads that arrive for a non-open subchannel are logged and discarded.
-
-This protocol calls for one OPEN and two CLOSE messages for each subchannel,
-with some arbitrary number of DATA messages in between. Subchannel-ids should
-not be reused (it would probably work, the protocol hasn't been analyzed
-enough to be sure).
-
-The "control channel" is special. It uses a subchannel-id of all zeros, and
-is opened implicitly by both sides as soon as the first L3 connection is
-selected. It is routed to a special client-on-both-sides endpoint, rather
-than causing the listening endpoint to accept a new connection. This avoids
-the need for application-level code to negotiate who should be the one to
-open it (the Leader/Follower distinction is private to the Wormhole
-internals: applications are not obligated to pick a side).
-
-OPEN and CLOSE messages for the control channel are logged and discarded. The
-control-channel client endpoints can only be used once, and does not close
-until the Wormhole itself is closed.
-
-Each OPEN/DATA/CLOSE message is delivered to the L4 object for queueing,
-delivery, and eventual retirement. The L5 layer does not keep track of old
-messages.
-
-### Flow Control
+TODO review and potentially remove? ~piegames
 
 Subchannels are flow-controlled by pausing their writes when the L3
 connection is paused, and pausing the L3 connection when the subchannel
