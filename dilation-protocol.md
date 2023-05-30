@@ -7,10 +7,11 @@ Dilation builds upon this concept, but tries to make it a first-class citizen th
 The idea is that clients say that they want to "dilate" a Wormhole,
 and the Dilation protocol will take care of the rest to establish such a high-bandwidth connection automatically.
 
-Additionally, the protocol takes care of automatically re-establishing such a channel after a connection interruption,
+The usually used Transit connection is replaced by a Dilation connection, that is managed by the Dilation implementation.
+Compared to the Transit connection, it has additional features like resilience against connection interruptions and sub-channels.
+The protocol takes care of automatically re-establishing such a channel after a connection interruption,
 including re-sending all messages that got lost.
-Furthermore, it has the concept of sub-channels built in,
-and will take care of the sub-channel management and data multiplexing too.
+It has the concept of sub-channels built in, and will take care of the sub-channel management and data multiplexing.
 
 ## Overview
 
@@ -18,9 +19,19 @@ A dilated Wormhole connection involves several moving parts.
 
 The Mailbox on the Mailbox server remains accessible to the application.
 It is additionally used by the Dilation implementation to exchange internal coordination messages.
+These are currently only used to communicate connection status and negotiate a new Dilation connection.
+Capability discovery is done by adding new fields to the Wormhole protocol's existing `versions` message instead.
 
-The usual Transit connection is replaced by a Dilation connection, that is managed by the Dilation implementation.
-Compared to the Transit connection, it has additional features like resilience against connection interruptions and sub-channels.
+On the base level of the Dilation connection, framed and encrypted messages are exchanged,
+same as in Transit — although with different cryptographic primitives.
+
+Unlike in Transit, the application does not have direct access to it though.
+Instead, the Dilation protocol adds its own message header and control logic, wrapping the actual application messages.
+This control logic takes care of monitoring the connection status, acknowledging message receipts,
+multiplexing multiple communication channels over that single connection, and re-sending lost messages after connection loss.
+
+The application receives access to the individual sub-channels to send and receive messages over them.
+It also has the possibility to open and close new sub-channels.
 
 ## Capability discovery
 
@@ -168,13 +179,18 @@ it can send additional hints for that new endpoint.
 If the other peer happens to be on the same LAN,
 the local connection can be established without waiting for the router's response.
 
-(I'd like to see that feature removed, this stuff is already complicated enough with a single hints message ~piegames)
-
 ### Connection Hint Format
 
 TODO delegate this to Transit
 
-## Dilation connection
+## Dilation connection cryptography
+
+Cryptographic primitives are provided by the [Noise Protocol](https://noiseprotocol.org/).
+Specifically, the exact protocol variant is called `Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s`,
+which means using the `NNpsk0` pattern for the handshake, Curve25519 Diffie-Hellmann key exchange,
+ChaCha20/Poly1305 authenticated encryption, and the BLAKE2s hash function.
+
+### Initial handshake
 
 TODO document the special relay handshake (it's the same as in Transit) ~piegames
 
@@ -187,25 +203,45 @@ If the wrong handshake is received, the connection will be dropped.
 For debugging purposes, the node might want to keep looking at data beyond the first incorrect character
 and log a few hundred characters until the first newline.
 
-Everything after that point is a Noise protocol message,
-which consists of a 4-byte big-endian length field, followed by a matching amount of bytes.
-This uses the `NNpsk0` pattern with the Leader as the first party ("-> psk, e" in the Noise spec),
-and the Follower as the second ("<- e, ee").
-The pre-shared-key is the "dilation key", which is statically derived from the master PAKE key using HKDF.
-(TODO how? ~piegames)
-Each connection uses the same pre-shared key, but different ephemeral keys, so each gets a different session key.
+### Message framing and maximum message size
+
+Everything after that point is a message in the Noise protocol, prefixed by a 4-byte big-endian length field.
+As Noise adds some overhead for authentication, the actual decrypted payload is shorter than the length field indicates.
+(In other words: the length field refers to the encrypted Noise message's length.)
+
+The Noise Protocol supports only messages up to 65535 bytes in length,
+while Dilation supports significantly larger messages due to the 32 bit length field.
+When the input payload size for a message exceeds Noise's limit, several Noise messages are used and concatenated together.
+All but the last one then must have the maximum length of 65535 bytes, and the length field refers to the sum of their lengths.
+The Noise protocol adds 16 bytes of overhead for authentication to each Noise message,
+therefore the maximal payload of each message is 4293918703 bytes (65537 Noise messages with 65519 bytes of payload each).
+
+Implementations are encouraged to define lower maximum message sizes for efficiency reasons.
+
+The length field must be authenticated by adding it to the authenticated data input of the Noise message.
+If a message consists of multiple noise messages, only the first of them authenticates the length field.
+ TODO review & implement ~piegames
+
+### Noise key exchange
+
+After the handshake, both sides exchange Noise messages for the handshake according to the `NNpsk0` pattern.
+Leader sends the first message ("-> psk, e" in the Noise spec), and the Follower as the second one ("<- e, ee").
+The pre-shared-key both sides use here is the "dilation key", which is statically derived from the master PAKE key using HKDF.
+The HKDF used to derive it is the RFC5869 HMAC construction instantiated with Sha256 as hashing algorithm.
+Inputs are the Wormhole session key (obtained through PAKE), a tag of the ASCII bytes "dilation-v1" and no salt;
+Output length is 32 bytes.
+The same pre-shared key is re-used across connections, but due to the different ephemeral keys each on gets a different session key.
 
 The Leader sends the first message, which is a psk-encrypted ephemeral key.
 The Follower sends the next message, its own psk-encrypted ephemeral key.
-These two messages are known as "handshake messages" in the Noise protocol,
-and must be processed in a specific order
+These two messages are known as "handshake messages" in the Noise protocol, and must be processed in a specific order
 (the Leader must not accept the Follower's message until it has generated its own).
 Noise allows handshake messages to include a payload, but we do not use this feature.
 
 All subsequent messages are known as "Noise transport messages", and are independent for each direction.
 Transport messages are encrypted by the shared key, in a form that evolves as more messages are sent.
 
-The Follower's first transport message is an empty packet, which we use as a "key confirmation message" (KCM).
+The Follower's first transport message has an empty payload, which we use as a "key confirmation message" (KCM).
 
 The Leader doesn't send a transport message right away: it waits to see the Follower's KCM,
 which indicates this connection is viable (i.e. the Follower used the same dilation key as the Leader,
@@ -217,7 +253,7 @@ It will send an empty KCM to the Follower to mark that connection, and close all
 All other connection attempts on both sides will be cancelled.
 All listening sockets may or may not be shut down (TODO: think about it ~warner).
 
-### Messages over the Dilation connection
+## Messages over the Dilation connection
 
 Unlike with applications using Transit,
 the application layer messages are not sent directly over the Dilation connection.
@@ -241,7 +277,8 @@ If the Leader loses the Dilation connection for whatever reason, it will initiat
 This involves sending a `reconnect` message and according hints over the Mailbox connection,
 the same way as for initially establishing the connection (i.e. using `DILATE-` phases).
 Once a new connection is established and the handshake completes,
-both sides re-transmit their outbound messages that were lost due to the connection interruption.
+both sides re-transmit their outbound messages that were lost due to the connection interruption
+(i.e. those for which they have not received an ack from the other side).
 Note that the new connection will have a different encryption key and state, therefore the messages need to be encrypted anew.
 It is not possible to only store the ciphertext for re-sending.
 
@@ -255,9 +292,7 @@ The rest of the message depends upon the type:
 * 0x04 CLOSE, 4-byte subchannel-id, 4-byte seqnum
 * 0x05 ACK, 4-byte response-seqnum
 
-TODO it would make more sense to have the seqnum before the subchannel-id, processing wise ~piegames
-
-#### Pings
+### Pings
 
 PING and PONG messages are regularly exchanged to monitor the status of the connection.
 They also serve to keep NAT entries alive, since some firewalls have unreasonably low connection timeouts
@@ -288,7 +323,7 @@ Receiving any PING will provoke a PONG in response, with a copy of the ping-id f
 The 30-second timer will produce unprovoked PONGs with a ping-id of all zeros.
 A future viability protocol might use PINGs to test for roundtrip functionality.
 
-#### Durable channel / Sequence numbers and ACKs
+### Durable channel / Sequence numbers and ACKs
 
 The OPEN, DATA, CLOSE and ACK messages all contain a big-endian encoded sequence number.
 They start at 0, and monotonically increment for each new message
@@ -303,7 +338,7 @@ therefore one can acknowledge multiple messages with one ACK.
 Messages may arrive multiple times; received messages with old sequence numbers must be ignored.
 New messages must be sent strictly in order.
 
-#### Sub-channel multiplexing
+### Sub-channel multiplexing
 
 The DATA payloads are multiplexed over some virtual sub-channels. They may be
 exposed to the application as logically independent data streams.
@@ -329,7 +364,7 @@ The side that opens a sub-channel is named the Initiator, and the other side is 
 Subchannels can be initiated in either direction, independent of the Leader/Follower distinction.
 For a typical file-transfer application, the subchannel would be initiated by the side seeking to send a file.
 
-### Flow Control and Quality of Service
+## Flow Control and Quality of Service
 
 TODO review and potentially remove? ~piegames
 
