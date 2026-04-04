@@ -184,7 +184,13 @@ observers to use the hard-earned token for themselves.
 ## Nameplates
 
 Wormhole codes look like `4-purple-sausages`, consisting of a number followed
-by some random words. This number is called a "Nameplate".
+by some random words. This number is called a "Nameplate". We define it as a
+non-negative integer (`0` is allowed, and used for a "YOLO" mode) with up to
+40 digits. It appears as a string in the "NAMEPLATES", "ALLOCATED", "CLAIM",
+and "RELEASE" messages, but the server will reject nameplates that contain
+non-digits or are too long. Note that wormhole codes are expected to be
+transcribed between humans, so overly long nameplates suggest you're holding
+it wrong.
 
 On the Mailbox server, the Nameplate contains a pointer to a Mailbox.
 Clients can "claim" a nameplate, and then later "release" it. Each claim is
@@ -194,8 +200,8 @@ released it, or after some period of inactivity.
 
 Clients can either make up nameplates themselves, or (more commonly) ask the
 server to allocate one for them. Allocating a nameplate automatically claims
-it (to avoid a race condition), but for simplicity, clients send a claim for
-all nameplates, even ones which they've allocated themselves.
+it (to avoid a race condition), but for simplicity, clients always send a
+claim for their nameplate, even if they allocated it themselves.
 
 Nameplates (on the server) must live until the second client has learned
 about the associated mailbox, after which point they can be reused by other
@@ -270,7 +276,8 @@ The `message` response will also include `id`, copied from the `id` of the
 `add` message (and used only by the timing-diagram tool).
 
 The Mailbox server does not de-duplicate messages, nor does it retain
-ordering: clients must do both if they need to.
+ordering: clients must be prepared to handle duplicates and buffer/reorder
+messages as necessary.
 
 ## All Message Types
 
