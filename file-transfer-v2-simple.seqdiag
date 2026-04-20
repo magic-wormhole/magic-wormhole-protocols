@@ -1,0 +1,15 @@
+seqdiag {
+    Alice -> Bian [label="OPEN(subchannel=1)"]
+    Alice -> Bian [label="control \n Offer[filename=foo, subchannel=1, id=42]"]
+
+    Alice <- Bian [label="control \n Accept[id=42]"]
+
+    Alice -> Bian [label="subchannel 1 \n DATA"]
+    Alice -> Bian [label="subchannel 1 \n DATA"]
+    Alice -> Bian [label="subchannel 1 \n DATA"]
+
+    Alice -> Bian [label="CLOSE(subchannel=1)"]
+
+    Alice <- Bian [label="close mailbox"]
+    Alice -> Bian [label="close mailbox"]
+}

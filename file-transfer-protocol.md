@@ -1,23 +1,19 @@
 # File-Transfer Protocol
 
-The `bin/wormhole` tool uses a Wormhole to establish a connection, then
-speaks a file-transfer -specific protocol over that Wormhole to decide how to
-transfer the data. This application-layer protocol is described here.
+The `bin/wormhole` tool uses a Wormhole to establish a connection, then speaks a file-transfer -specific protocol over that Wormhole to decide how to transfer the data.
+This application-layer protocol is described here.
 
-All application-level messages are dictionaries, which are JSON-encoded and
-and UTF-8 encoded before being handed to `wormhole.send` (which then encrypts
-them before sending through the rendezvous server to the peer).
+All application-level messages are dictionaries, which are JSON-encoded and UTF-8 encoded before being handed to `wormhole.send` (which then encrypts them before sending through the rendezvous server to the peer).
 
 ## Sender
 
-`wormhole send` has two main modes: file/directory (which requires a
-non-wormhole Transit connection), or text (which does not).
+`wormhole send` has two main modes: file/directory (which requires a non-wormhole Transit connection), or text (which does not).
 
-If the sender is doing files or directories, its first message contains just
-a `transit` key, whose value is a dictionary with `abilities-v1` and
-`hints-v1` keys. These are given to the Transit object, described below.
+If the sender is doing files or directories, its first message contains just a `transit` key, whose value is a dictionary with `abilities-v1` and `hints-v1` keys.
+These are given to the Transit object, described below.
 
-Then it sends a message with an `offer` key. The offer contains exactly one of:
+Then it sends a message with an `offer` key.
+The offer contains exactly one of:
 
 * `message`: the text message, for text-mode
 * `file`: for file-mode, a dict with:
