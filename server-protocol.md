@@ -121,7 +121,7 @@ WebSocket layer (by asking Autobahn to send a keepalive messages every 60
 seconds), and do not use `ping`.
 
 If any client->server command is invalid (e.g. it lacks a necessary key, or
-was sent in the wrong order), an `error` response will be sent, This response
+was sent in the wrong order), an `error` response will be sent. This response
 will include the error string in the `error` key, and a full copy of the
 original message dictionary in `orig`.
 
@@ -130,7 +130,7 @@ original message dictionary in `orig`.
 
 Server operators may wish to deny service to some clients. We
 generally refer to this as "Permission" and imagine future additions
-of use-cases and methods, although only one such pair is decribed
+of use-cases and methods, although only one such pair is described
 currently.
 
 One such use-case is if the server is under a Denial of Service (DoS)
@@ -142,7 +142,7 @@ In the `welcome` message the server may include a `permission-required` key. If 
 For example:
 
     {
-        "none": {}
+        "none": {},
         "hashcash": {
             "bits": 6,
             "resource": "resource-string"
@@ -284,7 +284,7 @@ messages as necessary.
 This lists all message types, along with the type-specific keys for each (if
 any), and which ones provoke direct responses:
 
-* S->C welcome {welcome: {permission-required: hashcash: {}}
+* S->C welcome {welcome: {permission-required: hashcash: {}}}
 * (C->S) submit-permissions {..} (optional)
 * (C->S) bind {appid:, side:, }
 * (C->S) list {} -> nameplates

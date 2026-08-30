@@ -28,7 +28,7 @@ For example:
 
 ```
 {
-    "can-dilate": ["1"]
+    "can-dilate": ["1"],
     "dilation-abilities": [
         {"type": "direct-tcp-v1"},
         {"type": "relay-v1"},
@@ -114,7 +114,7 @@ subchannels are created by the receipt of an OPEN message with the subchannel
 number. DATA frames are delivered to a specific subchannel. When the
 subchannel is no longer needed, one side will invoke the ``close()`` API
 (``loseConnection()`` in Twisted), which will cause a CLOSE message to be
-sent, and the local L5 object will be put into the "closing "state. When the
+sent, and the local L5 object will be put into the "closing" state. When the
 other side receives the CLOSE, it will send its own CLOSE for the same
 subchannel, and fully close its local object (``connectionLost()``). When the
 first side receives CLOSE in the "closing" state, it will fully close its
@@ -304,7 +304,7 @@ and must be processed in a specific order (the Leader must not accept the
 Follower's message until it has generated its own). Noise allows handshake
 messages to include a payload, but we do not use this feature.
 
-All subsequent messages as known as "Noise transport messages", and use
+All subsequent messages are known as "Noise transport messages", and use
 independent channels for each direction, so they no longer have ordering
 dependencies. Transport messages are encrypted by the shared key, in a form
 that evolves as more messages are sent.
@@ -332,7 +332,7 @@ be dropped). Other connections and/or listening sockets are stopped.
 
 Internally, the L2Protocol object manages the Noise session itself. It knows
 (via a constructor argument) whether it is on the Leader or Follower side,
-which affects both the role is plays in the Noise pattern, and the reaction
+which affects both the role it plays in the Noise pattern, and the reaction
 to receiving the handshake message / ephemeral key (for which only the
 Follower sends an empty KCM message). After that, the L2Protocol notifies the
 L3 object in three situations:
@@ -378,9 +378,9 @@ set of L1 messages. Connections from one generation should not be confused
 with those of a different generation.
 
 Each time a new L3 connection is established, the L4 protocol is notified. It
-will will immediately send all the L4 messages waiting in its outbound queue.
-The L3 protocol simply wraps these in Noise frames and sends them to the
-other side.
+will immediately send all the L4 messages waiting in its outbound queue. The
+L3 protocol simply wraps these in Noise frames and sends them to the other
+side.
 
 The L3 manager monitors the viability of the current connection, and declares
 it as lost when bidirectional traffic cannot be maintained. It uses PING and

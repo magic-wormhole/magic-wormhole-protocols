@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased chnages
+## Unreleased changes
 
 ## Version 1.0.1
 

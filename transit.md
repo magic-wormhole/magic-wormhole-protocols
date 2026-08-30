@@ -84,7 +84,7 @@ specified in this document:
   requested host and port number.
 * `relay-v1` indicates it can connect to the Transit Relay and speak the
   matching protocol.
-* `tor-tcp-v1` allows both sides finding eath other over Tor
+* `tor-tcp-v1` allows both sides finding each other over Tor.
 
 Together with each ability, the Transit object can create a
 list of "hints", which tell the respective handshake how to find the other side.
@@ -366,7 +366,7 @@ kept in sync.
 
 Because it is easy to get things wrong. This section only applies to the
 `direct-tcp-v1` hint. The following section is closely tied to the operating
-system's sockets API, and the the verbs *bind*, *listen*, *accept* and *connect*
+system's sockets API, and the verbs *bind*, *listen*, *accept* and *connect*
 will be used accordingly. Note that this is more a guide than a specification,
 since it handles implementation details that should all mostly be compatible
 with each other (and when not, failure is not critical).

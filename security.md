@@ -27,7 +27,7 @@ Compared to password strengths we are used to nowadays, 16 bits may seem scarily
 small, even knowing that an attacker only has one try to guess the password. But
 to put it into perspective:
 An attacker gains *on average* only one file for every 2^16 = 65536 attempts.
-Since there is no possibility of targetting any individual connection (because
+Since there is no possibility of targeting any individual connection (because
 who would re-try sending their file hundreds of times if it keeps failing?),
 any gained data would be fairly useless in most of the cases.
 Because failed guessing attempts result in failed key exchanges, brute force
