@@ -1,12 +1,12 @@
 # File-Transfer Protocol
 
 The `bin/wormhole` tool uses a Wormhole to establish a connection, then
-speaks a file-transfer -specific protocol over that Wormhole to decide how to
+speaks a file-transfer-specific protocol over that Wormhole to decide how to
 transfer the data. This application-layer protocol is described here.
 
 All application-level messages are dictionaries, which are JSON-encoded and
-and UTF-8 encoded before being handed to `wormhole.send` (which then encrypts
-them before sending through the rendezvous server to the peer).
+UTF-8 encoded before being handed to `wormhole.send` (which then encrypts them
+before sending through the rendezvous server to the peer).
 
 ## Sender
 
@@ -33,7 +33,7 @@ Then it sends a message with an `offer` key. The offer contains exactly one of:
 The sender runs a loop where it waits for similar dictionary-shaped messages
 from the recipient, and processes them. It reacts to the following keys:
 
-* `error`: use the value to throw a TransferError and terminates
+* `error`: use the value to throw a TransferError and terminate
 * `transit`: use the value to build the Transit instance
 * `answer`:
     * if `message_ack: "ok"` is in the value (we're in text-mode), then exit with success
