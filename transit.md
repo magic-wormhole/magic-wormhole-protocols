@@ -319,7 +319,7 @@ Full example value:
 If desired\*, transit provides an encrypted **record-pipe**, which means the two
 sides can and receive whole records, rather than unframed bytes. This is a side-effect of the
 encryption (which uses the NaCl "secretbox" function). The encryption adds 44
-bytes of overhead to each record (4-byte length, 24-byte nonce, 32-byte MAC),
+bytes of overhead to each record (4-byte length, 24-byte nonce, 16-byte MAC),
 so you might want to avoid bite-sized records for efficiency reasons.
 
 The maximum theoretical
