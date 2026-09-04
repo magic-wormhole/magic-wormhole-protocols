@@ -1,0 +1,64 @@
+digraph {
+
+    start[color=blue style=bold];
+    done[color=red style=bold];
+    start -> connected [label="peer mode: connect \l"];
+    start -> receiving [label="peer mode: send \l"];
+    start -> sending [label="peer mode: receive \l"];
+
+    connected -> offer_start [label="subchannel open \l"];
+    connected -> send_offer [label="make:Offer\lopen subchannel"];
+
+    receiving -> offer_start [label="subchannel open \l"];
+    sending -> send_offer [label="make:Offer\lopen subchannel"];
+
+    subgraph cluster_receive {
+        label="incoming offer";
+        color=lightseagreen;
+        style=filled;
+        node[color=white; style=filled;];
+
+        offer_start[color=white style=filled label="subchannel open"];
+        offer_start -> accepting [label="recv:Offer\lour-mode: yes"];
+        offer_start -> got_offer [label="recv: Offer\lask:accept?"];
+        got_offer -> accepting [label="answer:yes\lsend: AcceptOffer"];
+        got_offer -> rejecting [label="answer:no\lsend: RejectOffer"];
+
+        accepting -> accepting [label="recv: data \lwrite"];
+
+        recv_closed [label="closed"];
+        accepting -> recv_closed [label="subchannel close \lclose file"];
+
+        rejecting -> recv_closed [label="subchannel close \l"]
+    }
+
+    subgraph cluster_send {
+        label="outgoing offer";
+        color=lightblue;
+        style=filled;
+        node[color=white; style=filled;];
+
+        send_offer[color=white style=filled];
+        send_offer -> permission [label="send:Offer\lmode:ask"];
+        permission -> stream_data [label="recv:OfferAccept\l"];
+        permission -> send_closing [label="recv:OfferReject\lclose subchannel"];
+        send_offer -> stream_data [label="send:Offer\lmode:yes"];
+
+        stream_data -> stream_data [label="have data\lsend:Data"];
+
+        stream_data -> send_closing [label="completed\lclose subchannel"];
+        send_closed [label="closed"];
+        send_closing -> send_closed [labe="subchannel close"];
+    }
+
+    // "we" close down first
+    receiving -> closing [label="done\lclose dilation"];
+    sending -> closing [label="done\lclose dilation"];
+    connected -> closing [label="done\lclose dilation"];
+    closing -> done [label="dilation closed\l"]
+
+    // "they" close down first
+    receiving -> done [label="dilation closed\l"];
+    sending -> done [label="dilation closed\l"];
+    connected -> done [label="dilation closed\l"];
+}
